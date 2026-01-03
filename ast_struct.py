@@ -35,6 +35,10 @@ class Method:
     annotations: List[Annotation] = field(default_factory=list)
     attributes: Dict[str, Attribute] = field(default_factory=dict)
 
+    # Derived, structured IO (used by JSON conversion / LLM context).
+    inputs: Optional[List[Dict[str, Any]]] = None
+    outputs: Optional[List[Dict[str, Any]]] = None
+
 
 
 @dataclass
