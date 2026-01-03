@@ -445,7 +445,46 @@ class SigParser:
           JSON{uuid: str?, error: str?}
         """
         self.skip_ws()
+
+        def _compact_bracket_ws(s: str) -> str:
+            # The tokenizer often produces: "map < int, Todo >".
+            # Normalize to: "map<int, Todo>" (keep spaces after commas).
+            s = re.sub(r"<\s+", "<", s)
+            s = re.sub(r"\s+>", ">", s)
+            s = re.sub(r"\[\s+", "[", s)
+            s = re.sub(r"\s+\]", "]", s)
+            return s
+
+        def _parse_balanced(open_ch: str, close_ch: str) -> str:
+            self.skip_ws()
+            if self.peek() != open_ch:
+                return ""
+            start = self.i
+            depth = 0
+            while self.peek():
+                ch = self.advance()
+                if ch == open_ch:
+                    depth += 1
+                elif ch == close_ch:
+                    depth -= 1
+                    if depth == 0:
+                        break
+            if depth != 0:
+                raise SigParseError(f"Unclosed {open_ch}{close_ch} in {self.text!r}")
+            return _compact_bracket_ws(self.text[start:self.i])
+
         base = self.parse_ident()
+        suffix = ""
+        while True:
+            self.skip_ws()
+            if self.peek() == '<':
+                suffix += _parse_balanced('<', '>')
+                continue
+            if self.peek() == '[':
+                suffix += _parse_balanced('[', ']')
+                continue
+            break
+        base = base + suffix
         self.skip_ws()
         fields = None
         if self.peek() == '{':
