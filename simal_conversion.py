@@ -98,6 +98,8 @@ def _method_to_dict(m: Method) -> dict:
         "visibility": m.visibility,
         "params": m.params,
         "returns": m.returns,
+        "inputs": _to_json_value(m.inputs) if getattr(m, "inputs", None) is not None else None,
+        "outputs": _to_json_value(m.outputs) if getattr(m, "outputs", None) is not None else None,
         "annotations": [_annotation_to_dict(a) for a in m.annotations],
         "attributes": {k: _attr_to_dict(v) for k, v in m.attributes.items()},
     }
@@ -113,6 +115,8 @@ def _method_from_dict(d: dict) -> Method:
         attributes={
             k: _attr_from_dict(v) for k, v in d.get("attributes", {}).items()
         },
+        inputs=_from_json_value(d.get("inputs")) if d.get("inputs") is not None else None,
+        outputs=_from_json_value(d.get("outputs")) if d.get("outputs") is not None else None,
     )
 
 
@@ -156,10 +160,11 @@ def _endpoint_to_dict(e: Endpoint) -> dict:
         "path": e.path,
         "request": e.request,
         "response": e.response,
+        "inputs": _to_json_value(getattr(e, "inputs", None)) if getattr(e, "inputs", None) is not None else None,
+        "outputs": _to_json_value(getattr(e, "outputs", None)) if getattr(e, "outputs", None) is not None else None,
         "annotations": [_annotation_to_dict(a) for a in e.annotations],
         "attributes": {k: _to_json_value(v) for k, v in e.attributes.items()},
         "raw": e.raw,
-        # parsed fields are derived, better to recompute than store
     }
 
 def _endpoint_from_dict(d: dict) -> Endpoint:
@@ -177,6 +182,8 @@ def _endpoint_from_dict(d: dict) -> Endpoint:
             k: _from_json_value(v) for k, v in d.get("attributes", {}).items()
         },
         raw=d.get("raw", ""),
+        inputs=_from_json_value(d.get("inputs")) if d.get("inputs") is not None else None,
+        outputs=_from_json_value(d.get("outputs")) if d.get("outputs") is not None else None,
     )
 
 def _to_json_value(v: Any) -> Any:
@@ -294,6 +301,14 @@ def system_from_json_dict(data: dict) -> System:
                 )
             )
 
+    # Derived IO can be stored or recomputed; recompute to fill any missing.
+    try:
+        from simal_endpoint import enrich_endpoints, enrich_methods
+        enrich_endpoints(sys_block)
+        enrich_methods(sys_block)
+    except Exception:
+        pass
+
     return sys_block
 
 
@@ -344,8 +359,8 @@ def _endpoint_signature(e: Endpoint) -> str:
 def _method_to_simple(m: Method, max_simplify: bool = False) -> Any:
     if not max_simplify:
         d: Dict[str, Any] = {
-            "params": m.params,
-            "returns": m.returns,
+            "inputs": getattr(m, "inputs", None),
+            "outputs": getattr(m, "outputs", None),
         }
         if m.visibility:
             d["visibility"] = m.visibility
@@ -555,10 +570,7 @@ def _endpoint_to_simple(e: Endpoint, max_simplify: bool = False) -> Any:
         d["method"] = e.method
     if e.path:
         d["path"] = e.path
-    if e.request:
-        d["request"] = e.request
-    if e.response:
-        d["response"] = e.response
+    # For non-max-simple: prefer structured IO over raw request/response strings.
     if e.attributes:
         d["attrs"] = e.attributes
     if e.annotations:

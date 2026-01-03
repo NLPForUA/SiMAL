@@ -5,7 +5,277 @@ from dataclasses import dataclass
 from typing import List, Union, Dict, Any
 
 from ast_struct import TypeExpr, TupleSig
-from simal_parser import Attribute
+from ast_struct import Attribute
+
+
+def _split_top_level_commas(text: str) -> List[str]:
+    """Split a comma-separated list, ignoring commas inside (), [], {}, <>."""
+    s = (text or "").strip()
+    if not s:
+        return []
+
+    parts: List[str] = []
+    buf: List[str] = []
+    depth_paren = 0
+    depth_brack = 0
+    depth_brace = 0
+    depth_angle = 0
+
+    for ch in s:
+        if ch == '(':
+            depth_paren += 1
+        elif ch == ')' and depth_paren > 0:
+            depth_paren -= 1
+        elif ch == '[':
+            depth_brack += 1
+        elif ch == ']' and depth_brack > 0:
+            depth_brack -= 1
+        elif ch == '{':
+            depth_brace += 1
+        elif ch == '}' and depth_brace > 0:
+            depth_brace -= 1
+        elif ch == '<':
+            depth_angle += 1
+        elif ch == '>' and depth_angle > 0:
+            depth_angle -= 1
+
+        if (
+            ch == ','
+            and depth_paren == 0
+            and depth_brack == 0
+            and depth_brace == 0
+            and depth_angle == 0
+        ):
+            part = "".join(buf).strip()
+            if part:
+                parts.append(part)
+            buf = []
+            continue
+
+        buf.append(ch)
+
+    tail = "".join(buf).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _parse_go_param_list(params: str) -> List[Dict[str, Any]]:
+    s = (params or "").strip()
+    if not s:
+        return []
+
+    segments = _split_top_level_commas(s)
+    pending_names: List[str] = []
+    out: List[Dict[str, Any]] = []
+
+    def normalize_name_type(name_part: str, type_part: str):
+        name_part = (name_part or "").strip()
+        type_part = (type_part or "").strip()
+
+        for token in ("[]", "*", "&", "..."):
+            if name_part == token and type_part:
+                name_part = ""
+                type_part = f"{token}{type_part}"
+                break
+
+        for token in ("[]", "*", "&", "..."):
+            if name_part.endswith(token) and name_part != token:
+                name_part = name_part[: -len(token)].strip()
+                type_part = f"{token}{type_part}" if type_part else token
+
+        for token in ("[]", "*", "&", "..."):
+            if type_part.startswith(token + " "):
+                type_part = token + type_part[len(token) + 1 :]
+        return name_part, type_part
+
+    def emit(names: List[str], type_str: str):
+        for nm in names:
+            out.append({
+                "name": nm,
+                "type": type_str,
+                "optional": False,
+                "fields": None,
+            })
+
+    def split_top_level_colon(s2: str):
+        depth_paren = 0
+        depth_brack = 0
+        depth_brace = 0
+        depth_angle = 0
+        for idx, ch in enumerate(s2):
+            if ch == '(':
+                depth_paren += 1
+            elif ch == ')' and depth_paren > 0:
+                depth_paren -= 1
+            elif ch == '[':
+                depth_brack += 1
+            elif ch == ']' and depth_brack > 0:
+                depth_brack -= 1
+            elif ch == '{':
+                depth_brace += 1
+            elif ch == '}' and depth_brace > 0:
+                depth_brace -= 1
+            elif ch == '<':
+                depth_angle += 1
+            elif ch == '>' and depth_angle > 0:
+                depth_angle -= 1
+            if (
+                ch == ':'
+                and depth_paren == 0
+                and depth_brack == 0
+                and depth_brace == 0
+                and depth_angle == 0
+            ):
+                return s2[:idx].strip(), s2[idx + 1:].strip()
+        return None
+
+    for seg in segments:
+        seg = seg.strip()
+        if not seg:
+            continue
+
+        colon_split = split_top_level_colon(seg)
+        if colon_split is not None:
+            name_part, type_part = colon_split
+            if pending_names:
+                emit(pending_names, type_part)
+                pending_names = []
+            emit([name_part or ""], type_part)
+            continue
+
+        if any(ch.isspace() for ch in seg):
+            last_space = seg.rstrip().rfind(' ')
+            name_part = seg[:last_space].strip() if last_space != -1 else ""
+            type_part = seg[last_space + 1:].strip() if last_space != -1 else seg.strip()
+
+            name_part, type_part = normalize_name_type(name_part, type_part)
+
+            names: List[str] = []
+            if pending_names:
+                names.extend(pending_names)
+                pending_names = []
+            if name_part:
+                names.append(name_part)
+            if not names:
+                names = [""]
+
+            emit(names, type_part)
+        else:
+            pending_names.append(seg)
+
+    for nm in pending_names:
+        out.append({
+            "name": nm,
+            "type": "",
+            "optional": False,
+            "fields": None,
+        })
+
+    return out
+
+
+def _parse_go_returns(returns: str) -> List[Dict[str, Any]]:
+    s = (returns or "").strip()
+    if not s:
+        return []
+
+    if s.startswith('(') and s.endswith(')'):
+        s = s[1:-1].strip()
+
+    segments = _split_top_level_commas(s)
+    if not segments:
+        segments = [s]
+
+    out: List[Dict[str, Any]] = []
+
+    def normalize_name_type(name_part: str, type_part: str):
+        name_part = (name_part or "").strip()
+        type_part = (type_part or "").strip()
+
+        for token in ("[]", "*", "&", "..."):
+            if name_part == token and type_part:
+                name_part = ""
+                type_part = f"{token}{type_part}"
+                break
+
+        for token in ("[]", "*", "&", "..."):
+            if name_part.endswith(token) and name_part != token:
+                name_part = name_part[: -len(token)].strip()
+                type_part = f"{token}{type_part}" if type_part else token
+
+        for token in ("[]", "*", "&", "..."):
+            if type_part.startswith(token + " "):
+                type_part = token + type_part[len(token) + 1 :]
+        return name_part, type_part
+
+    def split_top_level_colon(s2: str):
+        depth_paren = 0
+        depth_brack = 0
+        depth_brace = 0
+        depth_angle = 0
+        for idx, ch in enumerate(s2):
+            if ch == '(':
+                depth_paren += 1
+            elif ch == ')' and depth_paren > 0:
+                depth_paren -= 1
+            elif ch == '[':
+                depth_brack += 1
+            elif ch == ']' and depth_brack > 0:
+                depth_brack -= 1
+            elif ch == '{':
+                depth_brace += 1
+            elif ch == '}' and depth_brace > 0:
+                depth_brace -= 1
+            elif ch == '<':
+                depth_angle += 1
+            elif ch == '>' and depth_angle > 0:
+                depth_angle -= 1
+            if (
+                ch == ':'
+                and depth_paren == 0
+                and depth_brack == 0
+                and depth_brace == 0
+                and depth_angle == 0
+            ):
+                return s2[:idx].strip(), s2[idx + 1:].strip()
+        return None
+
+    for seg in segments:
+        seg = seg.strip()
+        if not seg:
+            continue
+
+        colon_split = split_top_level_colon(seg)
+        if colon_split is not None:
+            name_part, type_part = colon_split
+            out.append({
+                "name": name_part,
+                "type": type_part,
+                "optional": False,
+                "fields": None,
+            })
+            continue
+        if any(ch.isspace() for ch in seg):
+            last_space = seg.rstrip().rfind(' ')
+            name_part = seg[:last_space].strip() if last_space != -1 else ""
+            type_part = seg[last_space + 1:].strip() if last_space != -1 else seg
+
+            name_part, type_part = normalize_name_type(name_part, type_part)
+            out.append({
+                "name": name_part,
+                "type": type_part,
+                "optional": False,
+                "fields": None,
+            })
+        else:
+            out.append({
+                "name": "",
+                "type": seg,
+                "optional": False,
+                "fields": None,
+            })
+    return out
 
 
 def typeexpr_to_struct_desc(t: TypeExpr) -> Dict[str, Any]:
@@ -372,3 +642,44 @@ def enrich_endpoints(system) -> None:
                     ep.outputs = signature_to_params(ep.response_parsed)
                 else:
                     ep.outputs = []
+
+
+def enrich_methods(system) -> None:
+    from ast_struct import Block as AstBlock, Method as AstMethod, System as AstSystem
+
+    def walk(value: Any) -> None:
+        if value is None:
+            return
+
+        if isinstance(value, AstMethod):
+            value.inputs = _parse_go_param_list(value.params)
+            value.outputs = _parse_go_returns(value.returns)
+            return
+
+        if isinstance(value, Attribute):
+            walk(value.value)
+            return
+
+        if isinstance(value, AstSystem):
+            for s in value.services:
+                walk(s)
+            for a in value.attributes.values():
+                walk(a)
+            return
+
+        if isinstance(value, AstBlock):
+            for a in value.attributes.values():
+                walk(a)
+            return
+
+        if isinstance(value, list):
+            for item in value:
+                walk(item)
+            return
+
+        if isinstance(value, dict):
+            for v in value.values():
+                walk(v)
+            return
+
+    walk(system)

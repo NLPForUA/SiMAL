@@ -7,7 +7,7 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
 
 from ast_struct import Annotation, Attribute, Block, Endpoint, Field, Method, Service, System
-from simal_endpoint import enrich_endpoints
+from simal_endpoint import enrich_endpoints, enrich_methods
 
 # -----------------------------
 # Tokenization
@@ -504,6 +504,7 @@ class Parser:
             anns.append(Annotation(name=name, args=args))
 
         return anns
+
 
     # attributes
     def parse_attribute(self):
@@ -1447,5 +1448,5 @@ def parse_dsl(text: str, parse_endpoints: bool = True, merge_duplicate_attrs: bo
     system = parser.parse_system()
     if parse_endpoints:
         enrich_endpoints(system)
+        enrich_methods(system)
     return system
-
