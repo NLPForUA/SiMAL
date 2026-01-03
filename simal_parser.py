@@ -505,7 +505,6 @@ class Parser:
 
         return anns
 
-
     # attributes
     def parse_attribute(self):
         self.skip_newlines()
@@ -1449,3 +1448,4 @@ def parse_dsl(text: str, parse_endpoints: bool = True, merge_duplicate_attrs: bo
     if parse_endpoints:
         enrich_endpoints(system)
     return system
+
