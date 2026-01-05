@@ -425,8 +425,32 @@ def _attrs_to_simple_dict(attrs: Dict[str, Attribute], max_simplify: bool = Fals
     """
     out: Dict[str, Any] = {}
     for key, attr in attrs.items():
-        out[key] = _simple_value(attr.value, context=key, max_simplify=max_simplify)
+        # Preserve attribute-level annotations (e.g. @PATH(...) before `development: { ... }`).
+        out[key] = _simple_value(attr, context=key, max_simplify=max_simplify)
     return out
+
+
+def _merge_attr_annotations(simple_val: Any, anns: List[Annotation]) -> Any:
+    if not anns:
+        return simple_val
+    ann_strings = [_annotation_to_simple(a) for a in anns]
+
+    # Prefer inlining into dict-like values.
+    if isinstance(simple_val, dict):
+        existing = simple_val.get("annotations")
+        if existing is None:
+            simple_val["annotations"] = ann_strings
+        elif isinstance(existing, list):
+            simple_val["annotations"] = existing + ann_strings
+        else:
+            simple_val["annotations"] = [existing] + ann_strings
+        return simple_val
+
+    # Otherwise wrap to avoid losing data.
+    return {
+        "value": simple_val,
+        "annotations": ann_strings,
+    }
 
 
 def _components_list_to_simple(comps: List[Any], max_simplify: bool = False) -> Any:
@@ -470,8 +494,9 @@ def _simple_value(v: Any, context: Optional[str] = None, max_simplify: bool = Fa
         return _endpoint_to_simple(v, max_simplify=max_simplify)
 
     if isinstance(v, Attribute):
-        # flatten Attribute wrapper
-        return _simple_value(v.value, context=context, max_simplify=max_simplify)
+        # Flatten Attribute wrapper, but do NOT drop its annotations.
+        simple_inner = _simple_value(v.value, context=context, max_simplify=max_simplify)
+        return _merge_attr_annotations(simple_inner, list(getattr(v, "annotations", []) or []))
 
     if isinstance(v, Annotation):
         return _annotation_to_simple(v)
@@ -570,15 +595,20 @@ def _endpoint_to_simple(e: Endpoint, max_simplify: bool = False) -> Any:
         d["method"] = e.method
     if e.path:
         d["path"] = e.path
-    # For non-max-simple: prefer structured IO over raw request/response strings.
+    # For non-max-simple: prefer structured IO over raw request/response strings,
+    # but don't drop them when structured forms are unavailable.
     if e.attributes:
         d["attrs"] = e.attributes
     if e.annotations:
         d["annotations"] = [_annotation_to_simple(a) for a in e.annotations]
     if e.inputs:
         d["inputs"] = e.inputs
+    elif e.request:
+        d["request"] = e.request
     if e.outputs:
         d["outputs"] = e.outputs
+    elif e.response:
+        d["response"] = e.response
     return d
 
 

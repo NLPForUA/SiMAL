@@ -248,10 +248,33 @@ def tokenize(text: str) -> List[Token]:
 # Normalize Tokenization
 
 # punctuation we want to "stick" to the left
-_STICK_LEFT = {")", "]", "}", ",", ":", ";", "?", "]"}
+_STICK_LEFT = {")", "]", "}", ",", ":", ";", "?", "@"}
 
 # punctuation / symbols that we want to "stick" to the right (no space after)
-_STICK_RIGHT = {"(", "[", "{", "/", ".",}
+_STICK_RIGHT = {"(", "[", "{", "/", ".", ":", "@", "*", "^", "=", "-", "$", "JSON", "TEXT", "FORM"}
+
+
+def compact_values(values: List[str]) -> str:
+    """Compact-join a list of token values without extra spaces around punctuation."""
+    out_parts: List[str] = []
+    prev_val: Optional[str] = None
+
+    for v in values:
+        if prev_val is None:
+            out_parts.append(v)
+            prev_val = v
+            continue
+
+        if v in _STICK_LEFT:
+            out_parts[-1] = out_parts[-1].rstrip() + v
+        elif prev_val in _STICK_RIGHT or prev_val.endswith("/"):
+            out_parts[-1] = out_parts[-1] + v
+        else:
+            out_parts.append(" " + v)
+
+        prev_val = v
+
+    return "".join(out_parts).strip()
 
 def compact_token_values(tokens: List[Token]) -> str:
     """
@@ -278,7 +301,7 @@ def compact_token_values(tokens: List[Token]) -> str:
         if v in _STICK_LEFT:
             # attach to previous token, no extra space
             out_parts[-1] = out_parts[-1].rstrip() + v
-        elif prev_val in _STICK_RIGHT:
+        elif prev_val in _STICK_RIGHT or prev_val.endswith("/"):
             # previous token sticks to the right (e.g. "JSON", "(", "/", "{")
             out_parts[-1] = out_parts[-1] + v
         else:
@@ -498,7 +521,7 @@ class Parser:
                     groups.append(cur)
 
                 # turn each group of tokens into a single string argument
-                args = [" ".join(g).strip() for g in groups if g]
+                args = [compact_values(g) for g in groups if g]
 
             self.skip_newlines()
             anns.append(Annotation(name=name, args=args))
@@ -588,7 +611,7 @@ class Parser:
 
                 # if we just consumed the closing token that brought depth to zero, continue so outer loop can stop next iteration
 
-            value = " ".join(parts).strip()
+            value = compact_values(parts)
 
         self.skip_newlines()
         return key, Attribute(key=key, value=value, annotations=anns)
@@ -602,7 +625,7 @@ class Parser:
         def consume_raw_line():
             raw_parts = self._collect_tokens_until((TokType.NEWLINE, TokType.RBRACE))
             if raw_parts:
-                raw_line = " ".join(raw_parts).strip()
+                raw_line = compact_values(raw_parts)
                 obj.setdefault("__raw__", []).append(raw_line)
 
         while self.peek().type != TokType.RBRACE:
@@ -644,9 +667,9 @@ class Parser:
                     val = self.eat(TokType.STRING).value
                 else:
                     parts = self._collect_tokens_until(
-                        (TokType.NEWLINE, TokType.RBRACE, TokType.RBRACK)
+                        (TokType.COMMA, TokType.NEWLINE, TokType.RBRACE, TokType.RBRACK)
                     )
-                    val = " ".join(parts).strip()
+                    val = compact_values(parts)
             else:
                 # No colon after key: treat the entire remainder (including any braces) as a raw string.
                 if self.peek().type == TokType.LBRACE:
@@ -667,8 +690,8 @@ class Parser:
                             break
                     val = " ".join(buf).strip()
                 else:
-                    parts = self._collect_tokens_until((TokType.NEWLINE, TokType.RBRACE, TokType.RBRACK))
-                    val = " ".join(parts).strip()
+                    parts = self._collect_tokens_until((TokType.COMMA, TokType.NEWLINE, TokType.RBRACE, TokType.RBRACK))
+                    val = compact_values(parts)
 
             self.skip_newlines()
 
@@ -726,7 +749,7 @@ class Parser:
         type_parts = self._collect_tokens_until(
             (TokType.COMMA, TokType.NEWLINE, TokType.RBRACK)
         )
-        type_str = " ".join(type_parts).strip()
+        type_str = compact_values(type_parts)
 
         self.skip_newlines()
 
@@ -781,7 +804,7 @@ class Parser:
             else:
                 param_tokens.append(t.value)
                 self.pos += 1
-        params_str = " ".join(param_tokens).strip()
+        params_str = compact_values(param_tokens)
 
         self.skip_newlines()
 
@@ -792,7 +815,7 @@ class Parser:
         ret_tokens = self._collect_tokens_until(
             (TokType.LBRACE, TokType.COMMA, TokType.RBRACK, TokType.NEWLINE)
         )
-        returns_str = " ".join(ret_tokens).strip()
+        returns_str = compact_values(ret_tokens)
 
         # decide if the method has a body
         self.skip_newlines()
@@ -881,12 +904,23 @@ class Parser:
             while pt().type not in (TokType.ARROW, TokType.EOF):
                 t = pt()
 
-                # Heuristic: request body starts when we see 'JSON' or '{'
-                if not seen_body and (
-                    (t.type == TokType.IDENT and t.value == "JSON")
-                    or t.type == TokType.LBRACE
-                ):
-                    seen_body = True
+                def last_path_value() -> str:
+                    for tok in reversed(path_tokens):
+                        if tok.type != TokType.NEWLINE:
+                            return tok.value
+                    return ""
+
+                # Heuristic: request signature starts when we see an explicit payload marker
+                # like JSON{...}/TEXT{...}/FORM{...}, or a standalone { ... } request/query map.
+                # IMPORTANT: a '{' immediately after a '/' is treated as a path parameter
+                # segment (e.g. /todos/{taskId}).
+                if not seen_body:
+                    if t.type == TokType.IDENT and t.value in ("JSON", "TEXT", "FORM"):
+                        seen_body = True
+                    elif t.type == TokType.LBRACE:
+                        prev = last_path_value()
+                        if not (prev == "/" or prev.endswith("/")):
+                            seen_body = True
 
                 if seen_body:
                     body_tokens.append(t)
@@ -1180,7 +1214,7 @@ class Parser:
                     parts.append(tok.value)
                     self.pos += 1
 
-                scalar = " ".join(parts).strip()
+                scalar = compact_values(parts)
                 if scalar:
                     items.append(scalar)
 
