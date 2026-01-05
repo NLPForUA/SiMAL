@@ -1,0 +1,1318 @@
+{
+    "kind": "system",
+    "name": "Example microservice app",
+    "type": "microservices",
+    "domain": "todo and authentication",
+    "description": "Example polyglot microservice application: VueJS frontend, Go Auth API issuing JWT tokens, NodeJS Todos API with Redis-based log queue, Java Spring Boot Users API, Python log processor, Zipkin for tracing, Redis for queueing.",
+    "runtime": {
+        "development": {
+            "backend": "docker-compose",
+            "services": [
+                {
+                    "name": "frontend",
+                    "image": "frontend",
+                    "build_context": "./frontend",
+                    "ports_exposed": [
+                        "8080"
+                    ],
+                    "depends_on": [
+                        "zipkin",
+                        "auth-api",
+                        "todos-api",
+                        "users-api"
+                    ],
+                    "env": [
+                        "PORT",
+                        "AUTH_API_ADDRESS",
+                        "TODOS_API_ADDRESS",
+                        "ZIPKIN_URL"
+                    ]
+                },
+                {
+                    "name": "auth-api",
+                    "image": "auth-api",
+                    "build_context": "./auth-api",
+                    "ports_exposed": [
+                        "8081"
+                    ],
+                    "depends_on": [
+                        "zipkin",
+                        "users-api"
+                    ],
+                    "env": [
+                        "AUTH_API_PORT",
+                        "JWT_SECRET",
+                        "USERS_API_ADDRESS",
+                        "ZIPKIN_URL"
+                    ]
+                },
+                {
+                    "name": "todos-api",
+                    "image": "todos-api",
+                    "build_context": "./todos-api",
+                    "ports_exposed": [
+                        "8082"
+                    ],
+                    "depends_on": [
+                        "zipkin",
+                        "redis-queue"
+                    ],
+                    "env": [
+                        "TODO_API_PORT",
+                        "JWT_SECRET",
+                        "REDIS_HOST",
+                        "REDIS_PORT",
+                        "REDIS_CHANNEL",
+                        "ZIPKIN_URL"
+                    ]
+                },
+                {
+                    "name": "users-api",
+                    "image": "users-api",
+                    "build_context": "./users-api",
+                    "ports_exposed": [
+                        "8083"
+                    ],
+                    "depends_on": [
+                        "zipkin"
+                    ],
+                    "env": [
+                        "SERVER_PORT",
+                        "JWT_SECRET",
+                        "SPRING_ZIPKIN_BASE_URL"
+                    ]
+                },
+                {
+                    "name": "log-message-processor",
+                    "image": "log-message-processor",
+                    "build_context": "./log-message-processor",
+                    "depends_on": [
+                        "zipkin",
+                        "redis-queue"
+                    ],
+                    "env": [
+                        "REDIS_HOST",
+                        "REDIS_PORT",
+                        "REDIS_CHANNEL",
+                        "ZIPKIN_URL"
+                    ]
+                },
+                {
+                    "name": "zipkin",
+                    "image": "openzipkin/zipkin",
+                    "ports_exposed": [
+                        "9411"
+                    ]
+                },
+                {
+                    "name": "redis-queue",
+                    "image": "redis"
+                }
+            ]
+        },
+        "kubernetes": {
+            "backend": "k8s",
+            "cluster": "minikube",
+            "apply_command": "kubectl create -R -f k8s/",
+            "access": [
+                {
+                    "name": "frontend",
+                    "command": "minikube service frontend"
+                },
+                {
+                    "name": "zipkin",
+                    "command": "minikube service zipkin"
+                }
+            ],
+            "build_instructions": "Start Minikube, connect Docker CLI to the Minikube node, and build images with docker-compose so they are available to the cluster.\nCommands:\nminikube start\neval $(minikube docker-env)\ndocker-compose build",
+            "annotations": [
+                "PATH(k8s/README.md)"
+            ]
+        },
+        "annotations": [
+            "PATH(docker-compose.yaml)"
+        ]
+    },
+    "services": {
+        "frontend": {
+            "kind": "service",
+            "name": "frontend",
+            "annotations": [
+                "PATH(./frontend)",
+                "CALLS(system.auth_api)",
+                "CALLS(system.todos_api)",
+                "CALLS(system.users_api)",
+                "CALLS(system.zipkin)"
+            ],
+            "description": "VueJS-based UI. Talks to Auth API for authentication, Todos API for CRUD operations, Users API for profiles. Emits tracing data to Zipkin when enabled.",
+            "langs": [
+                "javascript"
+            ],
+            "dependencies": {
+                "auth_api": "http client",
+                "todos_api": "http client",
+                "users_api": "http client",
+                "zipkin": "tracing collector",
+                "node_packages": [
+                    "vue-router",
+                    "vuex",
+                    "vue-resource",
+                    "bootstrap-vue",
+                    "bootstrap",
+                    "jwt-decode",
+                    "zipkin",
+                    "zipkin-transport-http",
+                    "zipkin-instrumentation-vue-resource"
+                ]
+            },
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "container_name": "frontend",
+                    "build_context": "./frontend",
+                    "dockerfile": "./frontend/Dockerfile",
+                    "base_image": "node:8-alpine",
+                    "port": "8080",
+                    "start_command": "npm start",
+                    "tracing": "zipkin",
+                    "env": [
+                        {
+                            "key": "PORT",
+                            "value": "8080"
+                        },
+                        {
+                            "key": "AUTH_API_ADDRESS",
+                            "value": "auth-api:8081"
+                        },
+                        {
+                            "key": "TODOS_API_ADDRESS",
+                            "value": "todos-api:8082"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "zipkin:9411/api/v2/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(./frontend/Dockerfile)"
+                    ]
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "frontend",
+                    "service_name": "frontend",
+                    "replicas": "1",
+                    "image": "frontend",
+                    "image_pull_policy": "Never",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "frontend"
+                    },
+                    "ports_exposed": [
+                        "8080"
+                    ],
+                    "service_type": "LoadBalancer",
+                    "env": [
+                        {
+                            "key": "AUTH_API_ADDRESS",
+                            "value": "http://auth-api:8081"
+                        },
+                        {
+                            "key": "PORT",
+                            "value": "8080"
+                        },
+                        {
+                            "key": "TODOS_API_ADDRESS",
+                            "value": "http://todos-api:8082"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "http://zipkin:9411/api/v2/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(k8s/frontend/deployment.yaml)",
+                        "PATH(k8s/frontend/service.yaml)"
+                    ]
+                }
+            },
+            "components": [
+                {
+                    "kind": "config",
+                    "name": "ProdEnv",
+                    "annotations": [
+                        "PATH(./frontend/config/prod.env.js)"
+                    ],
+                    "NODE_ENV": "production"
+                },
+                {
+                    "kind": "config",
+                    "name": "DevEnv",
+                    "annotations": [
+                        "PATH(./frontend/config/dev.env.js)",
+                        "BASE(system.frontend.components.ProdEnv)"
+                    ],
+                    "NODE_ENV": "development"
+                },
+                {
+                    "kind": "config",
+                    "name": "WebpackDevConfig",
+                    "annotations": [
+                        "PATH(./frontend/config/index.js)"
+                    ],
+                    "dev_server": "webpack-dev-server",
+                    "port_source": "env PORT",
+                    "auto_open_browser": "false",
+                    "proxies": [
+                        {
+                            "route": "/login",
+                            "target_env": "AUTH_API_ADDRESS",
+                            "fallback": "http://127.0.0.1:8081",
+                            "secure": "false"
+                        },
+                        {
+                            "route": "/todos",
+                            "target_env": "TODOS_API_ADDRESS",
+                            "fallback": "http://127.0.0.1:8082",
+                            "secure": "false"
+                        },
+                        {
+                            "route": "/zipkin",
+                            "target_env": "ZIPKIN_URL",
+                            "fallback": "http://127.0.0.1:9411/api/v2/spans",
+                            "path_rewrite": {
+                                "from": "^/zipkin",
+                                "to": "empty"
+                            },
+                            "secure": "false"
+                        }
+                    ]
+                },
+                {
+                    "kind": "struct",
+                    "name": "AuthPlugin",
+                    "annotations": [
+                        "PATH(./frontend/src/auth.js)"
+                    ],
+                    "methods": {
+                        "install": "+install(Vue any, options any) -> void",
+                        "login": "+login(creds any, redirect string?) -> Promise",
+                        "logout": "+logout() -> void",
+                        "setAuthHeader": "+setAuthHeader(request any) -> void",
+                        "isAdmin": "+isAdmin() -> bool",
+                        "isLoggedIn": "+isLoggedIn() -> bool",
+                        "_retry": "-_retry(request any) -> Promise",
+                        "_storeToken": "-_storeToken(response any) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "ZipkinPlugin",
+                    "annotations": [
+                        "PATH(./frontend/src/zipkin.js)"
+                    ],
+                    "methods": {
+                        "install": "+install(Vue any, options any) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "FrontendApp",
+                    "annotations": [
+                        "PATH(./frontend/src/main.js)"
+                    ],
+                    "methods": {
+                        "bootstrap": "+bootstrap() -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "AppComponent",
+                    "annotations": [
+                        "PATH(./frontend/src/components/App.vue)"
+                    ]
+                },
+                {
+                    "kind": "struct",
+                    "name": "AppNav",
+                    "annotations": [
+                        "PATH(./frontend/src/components/AppNav.vue)"
+                    ],
+                    "methods": {
+                        "logout": "+logout() -> void",
+                        "isLoggedIn": "+isLoggedIn() -> bool",
+                        "isAdmin": "+isAdmin() -> bool"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "LoginView",
+                    "annotations": [
+                        "PATH(./frontend/src/components/Login.vue)"
+                    ],
+                    "methods": {
+                        "doLogin": "+doLogin() -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "TodoItemComponent",
+                    "annotations": [
+                        "PATH(./frontend/src/components/TodoItem.vue)"
+                    ],
+                    "fields": {
+                        "+todo": "any"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "TodosView",
+                    "annotations": [
+                        "PATH(./frontend/src/components/Todos.vue)"
+                    ],
+                    "fields": {
+                        "+tasks": "array_any",
+                        "+isProcessing": "bool",
+                        "+errorMessage": "string",
+                        "+newTask": "string"
+                    },
+                    "methods": {
+                        "loadTasks": "+loadTasks() -> void",
+                        "addTask": "+addTask() -> void",
+                        "removeTask": "+removeTask(index int) -> void",
+                        "total": "+total() -> int",
+                        "created": "+created() -> void"
+                    }
+                },
+                {
+                    "kind": "router",
+                    "name": "FrontendRouter",
+                    "annotations": [
+                        "PATH(./frontend/src/router/index.js)"
+                    ],
+                    "library": "vue-router",
+                    "routes": [
+                        {
+                            "path": "/login",
+                            "name": "login",
+                            "component": "LoginView"
+                        },
+                        {
+                            "path": "/",
+                            "alias": "/todos",
+                            "name": "todos",
+                            "component": "TodosView",
+                            "beforeEnter": "requireLoggedIn"
+                        }
+                    ],
+                    "guards": [
+                        {
+                            "name": "requireLoggedIn",
+                            "trigger": "beforeEnter",
+                            "check": "Auth.isLoggedIn",
+                            "on_fail": "redirect to /login with redirect query"
+                        }
+                    ]
+                },
+                {
+                    "kind": "config",
+                    "name": "StoreStorage",
+                    "annotations": [
+                        "PATH(./frontend/src/store/state.js)"
+                    ],
+                    "STORAGE_KEY": "microservice-app-example-frontend"
+                },
+                {
+                    "kind": "struct",
+                    "name": "State",
+                    "annotations": [
+                        "PATH(./frontend/src/store/state.js)"
+                    ],
+                    "fields": {
+                        "+auth": "AuthState",
+                        "+user": "UserState"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "AuthState",
+                    "annotations": [
+                        "PATH(./frontend/src/store/state.js)"
+                    ],
+                    "fields": {
+                        "+isLoggedIn": "bool",
+                        "+accessToken": "string?",
+                        "+refreshToken": "string?"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "UserState",
+                    "annotations": [
+                        "PATH(./frontend/src/store/state.js)"
+                    ],
+                    "fields": {
+                        "+name": "string?",
+                        "+role": "any?"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "Mutations",
+                    "annotations": [
+                        "PATH(./frontend/src/store/mutations.js)"
+                    ],
+                    "methods": {
+                        "UPDATE_AUTH": "+UPDATE_AUTH(state any, auth any) -> void",
+                        "UPDATE_USER": "+UPDATE_USER(state any, user any) -> void",
+                        "CLEAR_ALL_DATA": "+CLEAR_ALL_DATA(state any) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "LocalStoragePlugin",
+                    "annotations": [
+                        "PATH(./frontend/src/store/plugins.js)"
+                    ],
+                    "methods": {
+                        "apply": "+apply(store any) -> void",
+                        "_onMutation": "-_onMutation(mutation any, state any) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "VuexStore",
+                    "annotations": [
+                        "PATH(./frontend/src/store/index.js)"
+                    ],
+                    "fields": {
+                        "+state": "State",
+                        "+mutations": "Mutations",
+                        "+plugins": "array_any"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "SpinnerComponent",
+                    "annotations": [
+                        "PATH(./frontend/src/components/common/Spinner.vue)"
+                    ],
+                    "fields": {
+                        "+message": "string"
+                    }
+                }
+            ]
+        },
+        "auth_api": {
+            "kind": "service",
+            "name": "auth_api",
+            "annotations": [
+                "PATH(./auth-api)",
+                "CALLS(system.users_api)",
+                "CALLS(system.zipkin)"
+            ],
+            "description": "Go-based authorization service issuing JWT tokens for use with other APIs. Uses Users API for profile data and Zipkin for tracing.",
+            "langs": [
+                "go"
+            ],
+            "dependencies": {
+                "users_api": "http client",
+                "zipkin": "tracing collector"
+            },
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "container_name": "auth-api",
+                    "port": "8081",
+                    "secrets": [
+                        "JWT_SECRET"
+                    ],
+                    "env": [
+                        {
+                            "key": "AUTH_API_PORT",
+                            "value": "8081"
+                        },
+                        {
+                            "key": "USERS_API_ADDRESS",
+                            "value": "users-api:8083"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "zipkin:9411/api/v2/spans"
+                        }
+                    ]
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "auth-api",
+                    "service_name": "auth-api",
+                    "replicas": "1",
+                    "image": "auth-api",
+                    "image_pull_policy": "Never",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "auth-api"
+                    },
+                    "ports_exposed": [
+                        "8081"
+                    ],
+                    "env": [
+                        {
+                            "key": "AUTH_API_PORT",
+                            "value": "8081"
+                        },
+                        {
+                            "key": "JWT_SECRET",
+                            "value": "myfancysecret"
+                        },
+                        {
+                            "key": "USERS_API_ADDRESS",
+                            "value": "http://users-api:8083"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "http://zipkin:9411/api/v2/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(k8s/auth-api/deployment.yaml)",
+                        "PATH(k8s/auth-api/service.yaml)"
+                    ]
+                }
+            },
+            "api": [
+                {
+                    "type": "http",
+                    "endpoints": [
+                        "GET /version -> TEXT{text:str} [auth:none]",
+                        "POST /login JSON{username:str, password:str} -> JSON{accessToken:str, error:str?} [auth:none]"
+                    ]
+                }
+            ],
+            "components": [
+                {
+                    "kind": "interface",
+                    "name": "HTTPDoer",
+                    "annotations": [
+                        "PATH(./auth-api/user.go)"
+                    ],
+                    "methods": {
+                        "Do": "+Do(req *http.Request) -> (*http.Response, error)"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "UserService",
+                    "annotations": [
+                        "PATH(./auth-api/user.go)"
+                    ],
+                    "fields": {
+                        "+Client": "HTTPDoer",
+                        "+UserAPIAddress": "string",
+                        "+AllowedUserHashes": "map_any"
+                    },
+                    "methods": {
+                        "Login": "+Login(ctx context.Context, username string, password string) -> (User, error)",
+                        "getUser": "-getUser(ctx context.Context, username string) -> (User, error)",
+                        "getUserAPIToken": "-getUserAPIToken(username string) -> (string, error)"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "User",
+                    "annotations": [
+                        "PATH(./auth-api/user.go)"
+                    ],
+                    "fields": {
+                        "+Username": "string",
+                        "+FirstName": "string",
+                        "+LastName": "string",
+                        "+Role": "string"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "LoginRequest",
+                    "annotations": [
+                        "PATH(./auth-api/main.go)"
+                    ],
+                    "fields": {
+                        "+Username": "string",
+                        "+Password": "string"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "TracedClient",
+                    "annotations": [
+                        "PATH(./auth-api/tracing.go)"
+                    ],
+                    "fields": {
+                        "-client": "zipkinhttp.Client"
+                    },
+                    "methods": {
+                        "Do": "+Do(req *http.Request) -> (*http.Response, error)"
+                    }
+                }
+            ]
+        },
+        "todos_api": {
+            "kind": "service",
+            "name": "todos_api",
+            "annotations": [
+                "PATH(./todos-api)",
+                "CALLS(system.redis_queue)",
+                "CALLS(system.zipkin)"
+            ],
+            "description": "NodeJS Todos API providing CRUD for user todo records. Publishes create and delete operations to a Redis channel for asynchronous logging. Emits traces to Zipkin.",
+            "langs": [
+                "nodejs"
+            ],
+            "dependencies": {
+                "redis_queue": "publish log messages",
+                "zipkin": "tracing collector",
+                "node_packages": [
+                    "body-parser@^1.18.2",
+                    "express@^4.15.4",
+                    "express-jwt@^5.3.0",
+                    "memory-cache@^0.2.0",
+                    "redis@^2.8.0",
+                    "zipkin@^0.11.2",
+                    "zipkin-context-cls@^0.11.0",
+                    "zipkin-instrumentation-express@^0.11.2",
+                    "zipkin-transport-http@^0.11.2"
+                ],
+                "node_dev_packages": [
+                    "nodemon@^1.11.0"
+                ],
+                "annotations": [
+                    "PATH(./todos-api/package.json)"
+                ]
+            },
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "container_name": "todos-api",
+                    "build_context": "./todos-api",
+                    "dockerfile": "./todos-api/Dockerfile",
+                    "base_image": "node:8-alpine",
+                    "port": "8082",
+                    "start_command": "npm start",
+                    "secrets": [
+                        "JWT_SECRET"
+                    ],
+                    "env": [
+                        {
+                            "key": "TODO_API_PORT",
+                            "value": "8082"
+                        },
+                        {
+                            "key": "REDIS_HOST",
+                            "value": "redis-queue"
+                        },
+                        {
+                            "key": "REDIS_PORT",
+                            "value": "6379"
+                        },
+                        {
+                            "key": "REDIS_CHANNEL",
+                            "value": "log_channel"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "zipkin:9411/api/v2/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(./todos-api/Dockerfile)"
+                    ]
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "todos-api",
+                    "service_name": "todos-api",
+                    "replicas": "1",
+                    "image": "todos-api",
+                    "image_pull_policy": "Never",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "todos-api"
+                    },
+                    "ports_exposed": [
+                        "8082"
+                    ],
+                    "env": [
+                        {
+                            "key": "JWT_SECRET",
+                            "value": "myfancysecret"
+                        },
+                        {
+                            "key": "TODO_API_PORT",
+                            "value": "8082"
+                        },
+                        {
+                            "key": "REDIS_HOST",
+                            "value": "redis-queue"
+                        },
+                        {
+                            "key": "REDIS_PORT",
+                            "value": "6379"
+                        },
+                        {
+                            "key": "REDIS_CHANNEL",
+                            "value": "log_channel"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "http://zipkin:9411/api/v2/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(k8s/todos-api/deployment.yaml)",
+                        "PATH(k8s/todos-api/service.yaml)"
+                    ]
+                }
+            },
+            "api": [
+                {
+                    "type": "http",
+                    "endpoints": [
+                        "GET /todos -> JSON{items:map < int, Todo >} [auth:bearer_jwt]",
+                        "POST /todos JSON{content:str} -> JSON{todo:Todo} [auth:bearer_jwt]",
+                        "DELETE /todos/{taskId} -> void [auth:bearer_jwt, status:204]"
+                    ],
+                    "annotations": [
+                        "PATH(./todos-api/routes.js)"
+                    ]
+                }
+            ],
+            "components": [
+                {
+                    "kind": "queue",
+                    "name": "TodosLogChannel",
+                    "engine": "redis",
+                    "channel": "log_channel",
+                    "direction": "publish",
+                    "purpose": "publish create and delete event messages for logging"
+                },
+                {
+                    "kind": "struct",
+                    "name": "TodoController",
+                    "annotations": [
+                        "PATH(./todos-api/todoController.js)"
+                    ],
+                    "fields": {
+                        "-_tracer": "any",
+                        "-_redisClient": "any",
+                        "-_logChannel": "string"
+                    },
+                    "methods": {
+                        "list": "+list(req any, res any) -> void",
+                        "create": "+create(req any, res any) -> void",
+                        "delete": "+delete(req any, res any) -> void",
+                        "_logOperation": "-_logOperation(opName string, username string, todoId any) -> void",
+                        "_getTodoData": "-_getTodoData(userID any) -> any",
+                        "_setTodoData": "-_setTodoData(userID any, data any) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "Todo",
+                    "annotations": [
+                        "PATH(./todos-api/todoController.js)"
+                    ],
+                    "fields": {
+                        "+id": "int",
+                        "+content": "string"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "LogMessage",
+                    "annotations": [
+                        "PATH(./todos-api/todoController.js)"
+                    ],
+                    "fields": {
+                        "+opName": "string",
+                        "+username": "string",
+                        "+todoId": "any",
+                        "+zipkinSpan": "any"
+                    }
+                }
+            ]
+        },
+        "users_api": {
+            "kind": "service",
+            "name": "users_api",
+            "annotations": [
+                "PATH(./users-api)",
+                "CALLS(system.zipkin)"
+            ],
+            "description": "Java Spring Boot Users API providing user profiles (single user and list).",
+            "langs": [
+                "java"
+            ],
+            "dependencies": {
+                "zipkin": "tracing collector",
+                "maven_dependencies": [
+                    "org.springframework.boot:spring-boot-starter-web",
+                    "org.springframework.boot:spring-boot-starter-security",
+                    "io.jsonwebtoken:jjwt@0.7.0",
+                    "org.springframework.boot:spring-boot-starter-data-jpa",
+                    "com.h2database:h2",
+                    "org.springframework.cloud:spring-cloud-starter-zipkin@1.3.1.RELEASE",
+                    "org.springframework.boot:spring-boot-starter-test"
+                ],
+                "annotations": [
+                    "PATH(./users-api/pom.xml)"
+                ]
+            },
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "container_name": "users-api",
+                    "build_context": "./users-api",
+                    "dockerfile": "./users-api/Dockerfile",
+                    "base_image": "openjdk:8-alpine",
+                    "port": "8083",
+                    "start_command": "java -jar ./target/users-api-0.0.1-SNAPSHOT.jar",
+                    "secrets": [
+                        "JWT_SECRET"
+                    ],
+                    "env": [
+                        {
+                            "key": "SERVER_PORT",
+                            "value": "8083"
+                        },
+                        {
+                            "key": "SPRING_ZIPKIN_BASE_URL",
+                            "value": "zipkin:9411"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(./users-api/Dockerfile)"
+                    ]
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "users-api",
+                    "service_name": "users-api",
+                    "replicas": "1",
+                    "image": "users-api",
+                    "image_pull_policy": "Never",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "users-api"
+                    },
+                    "ports_exposed": [
+                        "8083"
+                    ],
+                    "env": [
+                        {
+                            "key": "JWT_SECRET",
+                            "value": "myfancysecret"
+                        },
+                        {
+                            "key": "SERVER_PORT",
+                            "value": "8083"
+                        },
+                        {
+                            "key": "SPRING_ZIPKIN_BASE_URL",
+                            "value": "http://zipkin:9411"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(k8s/users-api/deployment.yaml)",
+                        "PATH(k8s/users-api/service.yaml)"
+                    ]
+                }
+            },
+            "api": [
+                {
+                    "type": "http",
+                    "endpoints": [
+                        "GET /users -> JSON{users:any}",
+                        "GET /users/{username} -> JSON{user:any?} [auth:bearer_jwt, access_control:same_user]"
+                    ],
+                    "annotations": [
+                        "PATH(./users-api/README.md)",
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/api/UsersController.java)"
+                    ]
+                }
+            ],
+            "components": [
+                {
+                    "kind": "config",
+                    "name": "MavenWrapper",
+                    "annotations": [
+                        "PATH(./users-api/.mvn/wrapper/maven-wrapper.properties)"
+                    ],
+                    "distribution_url": "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.5.0/apache-maven-3.5.0-bin.zip"
+                },
+                {
+                    "kind": "config",
+                    "name": "ApplicationProperties",
+                    "annotations": [
+                        "PATH(users-api/src/main/resources/application.properties)"
+                    ],
+                    "jwt.secret": "myfancysecret",
+                    "server.port": "8083",
+                    "spring.application.name": "users-api",
+                    "spring.zipkin.baseUrl": "http://127.0.0.1:9411/",
+                    "spring.sleuth.sampler.percentage": "100.0"
+                },
+                {
+                    "kind": "struct",
+                    "name": "HttpSecurityConfiguration",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/configuration/SecurityConfiguration.java)"
+                    ],
+                    "web_security_enabled": "true",
+                    "global_method_security_secured_enabled": "true"
+                },
+                {
+                    "kind": "struct",
+                    "name": "ApiConfigurerAdatper",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/configuration/SecurityConfiguration.java)"
+                    ],
+                    "extends": "WebSecurityConfigurerAdapter",
+                    "fields": {
+                        "-jwtAuthenticationFilter": "JwtAuthenticationFilter"
+                    },
+                    "methods": {
+                        "configure": {
+                            "def": "+configure(http HttpSecurity) -> void",
+                            "description": "Configures HttpSecurity to match all paths and adds JwtAuthenticationFilter after BasicAuthenticationFilter"
+                        }
+                    }
+                },
+                {
+                    "kind": "database",
+                    "name": "UsersDB",
+                    "engine": "h2",
+                    "description": "In-memory H2 database managed by Spring Data JPA and seeded via data.sql",
+                    "components": [
+                        {
+                            "kind": "table",
+                            "name": "users",
+                            "username": "VARCHAR",
+                            "firstname": "VARCHAR",
+                            "lastname": "VARCHAR",
+                            "role": "INT"
+                        }
+                    ]
+                },
+                {
+                    "kind": "sql",
+                    "name": "InitialData",
+                    "annotations": [
+                        "PATH(users-api/src/main/resources/data.sql)"
+                    ],
+                    "target": "users table",
+                    "statements": "INSERT INTO users (username, firstname, lastname, role) VALUES\n  ('admin', 'Foo', 'Bar', 1),\n  ('johnd', 'John', 'Doe', 0),\n  ('janed', 'Jane', 'Doe', 0);"
+                },
+                {
+                    "kind": "struct",
+                    "name": "UsersApiApplication",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/UsersApiApplication.java)"
+                    ],
+                    "methods": {
+                        "main": "+main(args string []) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "UsersApiApplicationTests",
+                    "annotations": [
+                        "PATH(users-api/src/test/java/com/elgris/usersapi/UsersApiApplicationTests.java)"
+                    ],
+                    "methods": {
+                        "contextLoads": "+contextLoads() -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "UsersController",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/api/UsersController.java)"
+                    ],
+                    "fields": {
+                        "-userRepository": "UserRepository"
+                    },
+                    "methods": {
+                        "getUsers": "+getUsers() -> User []",
+                        "getUser": "+getUser(request any, username string) -> User"
+                    }
+                },
+                {
+                    "kind": "interface",
+                    "name": "UserRepository",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/repository/UserRepository.java)"
+                    ],
+                    "extends": "CrudRepository",
+                    "entity": "User",
+                    "id_type": "Long",
+                    "methods": {
+                        "findOneByUsername": "+findOneByUsername(username string) -> User",
+                        "findByUsername": "+findByUsername(username string) -> User",
+                        "getByUsername": "+getByUsername(username string) -> User"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "User",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/models/User.java)"
+                    ],
+                    "fields": {
+                        "+username": "string",
+                        "+firstname": "string",
+                        "+lastname": "string",
+                        "+role": "UserRole"
+                    }
+                },
+                {
+                    "kind": "enum",
+                    "name": "UserRole",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/models/UserRole.java)"
+                    ],
+                    "values": [
+                        "USER",
+                        "ADMIN"
+                    ],
+                    "description_field": "description"
+                },
+                {
+                    "kind": "struct",
+                    "name": "JwtAuthenticationFilter",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/security/JwtAuthenticationFilter.java)"
+                    ],
+                    "extends": "GenericFilterBean",
+                    "fields": {
+                        "-jwtSecret": "string"
+                    },
+                    "methods": {
+                        "doFilter": "+doFilter(req ServletRequest, res ServletResponse, chain FilterChain) -> void"
+                    }
+                },
+                {
+                    "kind": "struct",
+                    "name": "AccessUserFilter",
+                    "annotations": [
+                        "PATH(users-api/src/main/java/com/elgris/usersapi/security/AccessUserFilter.java)"
+                    ],
+                    "extends": "GenericFilterBean",
+                    "methods": {
+                        "doFilter": "+doFilter(req ServletRequest, res ServletResponse, chain FilterChain) -> void"
+                    }
+                }
+            ]
+        },
+        "log_message_processor": {
+            "kind": "service",
+            "name": "log_message_processor",
+            "annotations": [
+                "PATH(./log-message-processor)",
+                "CALLS(system.redis_queue)",
+                "CALLS(system.zipkin)"
+            ],
+            "description": "Python worker that consumes messages from Redis channel and prints them to stdout. Used for logging of Todos API operations. Emits traces to Zipkin.",
+            "langs": [
+                "python"
+            ],
+            "dependencies": {
+                "redis_queue": "subscribe log messages",
+                "zipkin": "tracing collector",
+                "python_packages": [
+                    "redis ==2.10.6",
+                    "py_zipkin ==0.11.0",
+                    "requests"
+                ],
+                "annotations": [
+                    "PATH(./log-message-processor/requirements.txt)"
+                ]
+            },
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "container_name": "log-message-processor",
+                    "build_context": "./log-message-processor",
+                    "dockerfile": "./log-message-processor/Dockerfile",
+                    "base_image": "python:3.6-alpine",
+                    "start_command": "python3 -u main.py",
+                    "env": [
+                        {
+                            "key": "REDIS_HOST",
+                            "value": "redis-queue"
+                        },
+                        {
+                            "key": "REDIS_PORT",
+                            "value": "6379"
+                        },
+                        {
+                            "key": "REDIS_CHANNEL",
+                            "value": "log_channel"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "zipkin:9411/api/v1/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(./log-message-processor/Dockerfile)"
+                    ]
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "log-message-processor",
+                    "replicas": "1",
+                    "image": "log-message-processor",
+                    "image_pull_policy": "Never",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "log-message-processor"
+                    },
+                    "env": [
+                        {
+                            "key": "REDIS_HOST",
+                            "value": "redis-queue"
+                        },
+                        {
+                            "key": "REDIS_PORT",
+                            "value": "6379"
+                        },
+                        {
+                            "key": "REDIS_CHANNEL",
+                            "value": "log_channel"
+                        },
+                        {
+                            "key": "ZIPKIN_URL",
+                            "value": "http://zipkin:9411/api/v1/spans"
+                        }
+                    ],
+                    "annotations": [
+                        "PATH(k8s/log-message-processor/deployment.yaml)"
+                    ]
+                }
+            },
+            "components": [
+                {
+                    "kind": "struct",
+                    "name": "LogProcessor",
+                    "annotations": [
+                        "PATH(./log-message-processor/main.py)"
+                    ],
+                    "methods": {
+                        "log_message": "+log_message(message any) -> void",
+                        "http_transport": "+http_transport(encoded_span any) -> void",
+                        "run": "+run(redis_host string, redis_port int, redis_channel string, zipkin_url string) -> void"
+                    }
+                },
+                {
+                    "kind": "queue",
+                    "name": "TodosLogChannelConsumer",
+                    "annotations": [
+                        "PATH(./log-message-processor/main.py)"
+                    ],
+                    "engine": "redis",
+                    "channel": "log_channel",
+                    "direction": "subscribe",
+                    "purpose": "print messages to stdout"
+                }
+            ]
+        },
+        "zipkin": {
+            "kind": "service",
+            "name": "zipkin",
+            "annotations": [
+                "PATH(./)"
+            ],
+            "description": "Zipkin tracing collector and UI",
+            "langs": [
+                "container"
+            ],
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "image": "openzipkin/zipkin",
+                    "ports_exposed": [
+                        "9411"
+                    ]
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "zipkin",
+                    "service_name": "zipkin",
+                    "replicas": "1",
+                    "image": "openzipkin/zipkin",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "zipkin"
+                    },
+                    "ports_exposed": [
+                        "9411"
+                    ],
+                    "service_type": "LoadBalancer",
+                    "annotations": [
+                        "PATH(k8s/zipkin/deployment.yaml)",
+                        "PATH(k8s/zipkin/service.yaml)"
+                    ]
+                }
+            }
+        },
+        "redis_queue": {
+            "kind": "service",
+            "name": "redis_queue",
+            "annotations": [
+                "PATH(./)"
+            ],
+            "description": "Redis instance used as a queue for logging messages",
+            "langs": [
+                "container"
+            ],
+            "runtime": {
+                "development": {
+                    "backend": "docker-compose",
+                    "image": "redis"
+                },
+                "kubernetes": {
+                    "backend": "k8s",
+                    "deployment_name": "redis-queue",
+                    "service_name": "redis-queue",
+                    "replicas": "1",
+                    "image": "redis",
+                    "labels": {
+                        "app": "microservice-app-example",
+                        "service": "redis-queue"
+                    },
+                    "ports_exposed": [
+                        "6379"
+                    ],
+                    "annotations": [
+                        "PATH(k8s/redis-queue/deployment.yaml)",
+                        "PATH(k8s/redis-queue/service.yaml)"
+                    ]
+                }
+            },
+            "components": [
+                {
+                    "kind": "queue",
+                    "name": "LogChannel",
+                    "engine": "redis",
+                    "channel": "log_channel",
+                    "publishers": [
+                        "todos_api"
+                    ],
+                    "subscribers": [
+                        "log_message_processor"
+                    ]
+                }
+            ]
+        }
+    }
+}
