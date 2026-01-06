@@ -1,0 +1,1232 @@
+{
+    "__type__": "System",
+    "kind": "system",
+    "name": null,
+    "annotations": [],
+    "attributes": {
+        "type": {
+            "__type__": "Attribute",
+            "key": "type",
+            "value": "microservices",
+            "annotations": []
+        },
+        "domain": {
+            "__type__": "Attribute",
+            "key": "domain",
+            "value": "ecommerce",
+            "annotations": []
+        },
+        "description": {
+            "__type__": "Attribute",
+            "key": "description",
+            "value": "This schema defines a fictional ecommerce microservices system context for interaction with LLMs.\nIt includes services for user management and email verification.\nEach service is described with its API endpoints, data models, dependencies,\nruntime configurations, CI pipelines, and analysis feedback.",
+            "annotations": []
+        },
+        "runtime": {
+            "__type__": "Attribute",
+            "key": "runtime",
+            "value": {
+                "production": {
+                    "description": "AWS EKS cluster in us-west-2 region, 4-8 nodes, autoscaling enabled.\nAWS Secrets Manager, Prometheus and Grafana for monitoring.",
+                    "stack": [
+                        "kubernetes",
+                        "aws",
+                        "prometheus",
+                        "grafana"
+                    ]
+                },
+                "development": {
+                    "backend": "local minikube",
+                    "nodes": "1",
+                    "secrets": "local vault"
+                }
+            },
+            "annotations": []
+        }
+    },
+    "services": [
+        {
+            "__type__": "Service",
+            "kind": "service",
+            "name": "user_service",
+            "annotations": [
+                {
+                    "__type__": "Annotation",
+                    "name": "PATH",
+                    "args": [
+                        "github.com/org/ecommerce/user-service/"
+                    ]
+                },
+                {
+                    "__type__": "Annotation",
+                    "name": "CALLS",
+                    "args": [
+                        "system.verification_service"
+                    ]
+                }
+            ],
+            "attributes": {
+                "description": {
+                    "__type__": "Attribute",
+                    "key": "description",
+                    "value": "Handles user registration, authentication, and profile management.",
+                    "annotations": []
+                },
+                "langs": {
+                    "__type__": "Attribute",
+                    "key": "langs",
+                    "value": [
+                        "go",
+                        "protobuf",
+                        "yaml"
+                    ],
+                    "annotations": []
+                },
+                "repos": {
+                    "__type__": "Attribute",
+                    "key": "repos",
+                    "value": [
+                        "github.com/org/ecommerce/user-service",
+                        "github.com/org/ecommerce/user-service-deployment"
+                    ],
+                    "annotations": []
+                },
+                "runtime": {
+                    "__type__": "Attribute",
+                    "key": "runtime",
+                    "value": {
+                        "development": {
+                            "__type__": "Attribute",
+                            "key": "development",
+                            "value": {
+                                "backend": "k8s",
+                                "namespace": "ecommerce",
+                                "replicas": "1",
+                                "autoscaling": "disabled",
+                                "cpu_request": "500m",
+                                "memory_request": "256Mi",
+                                "cpu_limit": "1",
+                                "memory_limit": "512Mi",
+                                "deployment_name": "user-service",
+                                "ports_exposed": [
+                                    "50051"
+                                ]
+                            },
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/user-service-deployment/deployment/dev/"
+                                    ]
+                                }
+                            ]
+                        },
+                        "production": {
+                            "__type__": "Attribute",
+                            "key": "production",
+                            "value": {
+                                "replicas": "3-10",
+                                "autoscaling": "cpu_target =70%",
+                                "cpu_request": "1000m",
+                                "memory_request": "512Mi",
+                                "cpu_limit": "2000m",
+                                "memory_limit": "1024Mi"
+                            },
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/user-service-deployment/deployment/prod/"
+                                    ]
+                                },
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "BASE",
+                                    "args": [
+                                        "system.user_service.runtime.development"
+                                    ]
+                                },
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "DO_NOT_EDIT",
+                                    "args": []
+                                }
+                            ]
+                        }
+                    },
+                    "annotations": [
+                        {
+                            "__type__": "Annotation",
+                            "name": "PATH",
+                            "args": [
+                                "github.com/org/ecommerce/user-service-deployment/deployment/"
+                            ]
+                        }
+                    ]
+                },
+                "ci": {
+                    "__type__": "Attribute",
+                    "key": "ci",
+                    "value": {
+                        "backend": "circleci",
+                        "steps": {
+                            "CheckoutCode": "pull code from repo",
+                            "SetupGo": "setup Go 1.21 environment",
+                            "InstallDependencies": "install project dependencies",
+                            "RunTests": "execute unit and integration tests",
+                            "RunLinters": "run code linters for quality checks",
+                            "BuildBinary": "compile the Go binary",
+                            "BuildDockerImage": "create Docker image",
+                            "PushDockerImage": "push Docker image to AWS ECR"
+                        }
+                    },
+                    "annotations": [
+                        {
+                            "__type__": "Annotation",
+                            "name": "PATH",
+                            "args": [
+                                "github.com/org/ecommerce/user-service-deployment/.circleci/config.yml"
+                            ]
+                        }
+                    ]
+                },
+                "dependencies": {
+                    "__type__": "Attribute",
+                    "key": "dependencies",
+                    "value": {
+                        "postgres": "main database",
+                        "redis": "session cache",
+                        "verification_service": "grpc VerifyEmail (fallback http POST /verify)"
+                    },
+                    "annotations": []
+                },
+                "api": {
+                    "__type__": "Attribute",
+                    "key": "api",
+                    "value": [
+                        {
+                            "type": "grpc",
+                            "endpoints": [
+                                {
+                                    "__type__": "Endpoint",
+                                    "style": "grpc",
+                                    "name": "GetUser",
+                                    "method": null,
+                                    "path": null,
+                                    "request": "GetUserRequest {uuid:str}",
+                                    "response": "(user:User {name:str, email:str, verified:bool}?, error:str?)",
+                                    "inputs": [
+                                        {
+                                            "name": "uuid",
+                                            "type": "str",
+                                            "optional": false,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "name": "user",
+                                            "type": "User",
+                                            "optional": true,
+                                            "fields": [
+                                                {
+                                                    "name": "name",
+                                                    "type": "str",
+                                                    "optional": false
+                                                },
+                                                {
+                                                    "name": "email",
+                                                    "type": "str",
+                                                    "optional": false
+                                                },
+                                                {
+                                                    "name": "verified",
+                                                    "type": "bool",
+                                                    "optional": false
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "name": "error",
+                                            "type": "str",
+                                            "optional": true,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "annotations": [],
+                                    "attributes": {
+                                        "auth": "user_or_admin",
+                                        "cache": "5m",
+                                        "idempotent": "true"
+                                    },
+                                    "raw": "GetUser (GetUserRequest {uuid:str}) -> (user:User {name:str, email:str, verified:bool}?, error:str?) [auth:user_or_admin, cache:5m, idempotent:true]"
+                                },
+                                {
+                                    "__type__": "Endpoint",
+                                    "style": "grpc",
+                                    "name": "CreateUser",
+                                    "method": null,
+                                    "path": null,
+                                    "request": "CreateUserRequest {name:str, email:str, password:str}",
+                                    "response": "(uuid:str?, error:str?)",
+                                    "inputs": [
+                                        {
+                                            "name": "name",
+                                            "type": "str",
+                                            "optional": false,
+                                            "fields": null
+                                        },
+                                        {
+                                            "name": "email",
+                                            "type": "str",
+                                            "optional": false,
+                                            "fields": null
+                                        },
+                                        {
+                                            "name": "password",
+                                            "type": "str",
+                                            "optional": false,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "name": "uuid",
+                                            "type": "str",
+                                            "optional": true,
+                                            "fields": null
+                                        },
+                                        {
+                                            "name": "error",
+                                            "type": "str",
+                                            "optional": true,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "annotations": [],
+                                    "attributes": {
+                                        "auth": "none",
+                                        "rate_limit": "10/m"
+                                    },
+                                    "raw": "CreateUser (CreateUserRequest {name:str, email:str, password:str}) -> (uuid:str?, error:str?) [auth:none, rate_limit:10/m]"
+                                }
+                            ]
+                        },
+                        {
+                            "__type__": "Attribute",
+                            "key": null,
+                            "value": {
+                                "type": "http",
+                                "endpoints": [
+                                    {
+                                        "__type__": "Endpoint",
+                                        "style": "http",
+                                        "name": null,
+                                        "method": "GET",
+                                        "path": "/users/{id}",
+                                        "request": "",
+                                        "response": "JSON{user:User {name:str, email:str, verified:bool}?, error:str?}",
+                                        "inputs": [
+                                            {
+                                                "name": "id",
+                                                "type": "str",
+                                                "optional": false,
+                                                "fields": null
+                                            }
+                                        ],
+                                        "outputs": [
+                                            {
+                                                "name": "user",
+                                                "type": "User",
+                                                "optional": true,
+                                                "fields": [
+                                                    {
+                                                        "name": "name",
+                                                        "type": "str",
+                                                        "optional": false
+                                                    },
+                                                    {
+                                                        "name": "email",
+                                                        "type": "str",
+                                                        "optional": false
+                                                    },
+                                                    {
+                                                        "name": "verified",
+                                                        "type": "bool",
+                                                        "optional": false
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "name": "error",
+                                                "type": "str",
+                                                "optional": true,
+                                                "fields": null
+                                            }
+                                        ],
+                                        "annotations": [],
+                                        "attributes": {
+                                            "auth": "user_or_admin",
+                                            "cache": "5m",
+                                            "idempotent": "true"
+                                        },
+                                        "raw": "GET /users/{id} -> JSON{user:User {name:str, email:str, verified:bool}?, error:str?} [auth:user_or_admin, cache:5m, idempotent:true]"
+                                    },
+                                    {
+                                        "__type__": "Endpoint",
+                                        "style": "http",
+                                        "name": null,
+                                        "method": "POST",
+                                        "path": "/users",
+                                        "request": "JSON{name:str, email:str, password:str}",
+                                        "response": "JSON{uuid:str?, error:str?}",
+                                        "inputs": [
+                                            {
+                                                "name": "name",
+                                                "type": "str",
+                                                "optional": false,
+                                                "fields": null
+                                            },
+                                            {
+                                                "name": "email",
+                                                "type": "str",
+                                                "optional": false,
+                                                "fields": null
+                                            },
+                                            {
+                                                "name": "password",
+                                                "type": "str",
+                                                "optional": false,
+                                                "fields": null
+                                            }
+                                        ],
+                                        "outputs": [
+                                            {
+                                                "name": "uuid",
+                                                "type": "str",
+                                                "optional": true,
+                                                "fields": null
+                                            },
+                                            {
+                                                "name": "error",
+                                                "type": "str",
+                                                "optional": true,
+                                                "fields": null
+                                            }
+                                        ],
+                                        "annotations": [],
+                                        "attributes": {
+                                            "auth": "none",
+                                            "rate_limit": "10/m"
+                                        },
+                                        "raw": "POST /users JSON{name:str, email:str, password:str} -> JSON{uuid:str?, error:str?} [auth:none, rate_limit:10/m]"
+                                    }
+                                ]
+                            },
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "DELETED",
+                                    "args": [
+                                        "timestamp:2024-05-01T12:00:00Z",
+                                        "reason:Migrated to gRPC API"
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "annotations": []
+                },
+                "components": {
+                    "__type__": "Attribute",
+                    "key": "components",
+                    "value": [
+                        {
+                            "__type__": "Block",
+                            "kind": "database",
+                            "name": "UserRepo",
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/user-service/internal/db/"
+                                    ]
+                                },
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "CRITICAL",
+                                    "args": []
+                                }
+                            ],
+                            "attributes": {
+                                "engine": {
+                                    "__type__": "Attribute",
+                                    "key": "engine",
+                                    "value": "postgres-12",
+                                    "annotations": []
+                                },
+                                "description": {
+                                    "__type__": "Attribute",
+                                    "key": "description",
+                                    "value": "Manages user data in Postgres. Managed via migrations.",
+                                    "annotations": []
+                                },
+                                "components": {
+                                    "__type__": "Attribute",
+                                    "key": "components",
+                                    "value": [
+                                        {
+                                            "__type__": "Block",
+                                            "kind": "table",
+                                            "name": "users",
+                                            "annotations": [],
+                                            "attributes": {
+                                                "id": {
+                                                    "__type__": "Attribute",
+                                                    "key": "id",
+                                                    "value": "UUID (PK)",
+                                                    "annotations": []
+                                                },
+                                                "name": {
+                                                    "__type__": "Attribute",
+                                                    "key": "name",
+                                                    "value": "VARCHAR (100)",
+                                                    "annotations": []
+                                                },
+                                                "email": {
+                                                    "__type__": "Attribute",
+                                                    "key": "email",
+                                                    "value": "VARCHAR (100) (UNIQUE)",
+                                                    "annotations": []
+                                                },
+                                                "password_hash": {
+                                                    "__type__": "Attribute",
+                                                    "key": "password_hash",
+                                                    "value": "VARCHAR (256)",
+                                                    "annotations": []
+                                                },
+                                                "verified": {
+                                                    "__type__": "Attribute",
+                                                    "key": "verified",
+                                                    "value": "BOOLEAN",
+                                                    "annotations": []
+                                                },
+                                                "created_at": {
+                                                    "__type__": "Attribute",
+                                                    "key": "created_at",
+                                                    "value": "TIMESTAMP",
+                                                    "annotations": []
+                                                },
+                                                "updated_at": {
+                                                    "__type__": "Attribute",
+                                                    "key": "updated_at",
+                                                    "value": "TIMESTAMP",
+                                                    "annotations": []
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "annotations": []
+                                },
+                                "queries": {
+                                    "__type__": "Attribute",
+                                    "key": "queries",
+                                    "value": [
+                                        "GetByID",
+                                        "Insert",
+                                        "Update",
+                                        "Delete"
+                                    ],
+                                    "annotations": []
+                                }
+                            }
+                        },
+                        {
+                            "__type__": "Block",
+                            "kind": "cache",
+                            "name": "SessionCache",
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/user-service/internal/cache/"
+                                    ]
+                                }
+                            ],
+                            "attributes": {
+                                "engine": {
+                                    "__type__": "Attribute",
+                                    "key": "engine",
+                                    "value": "redis-6",
+                                    "annotations": []
+                                },
+                                "description": {
+                                    "__type__": "Attribute",
+                                    "key": "description",
+                                    "value": "Caches user session data.",
+                                    "annotations": []
+                                },
+                                "components": {
+                                    "__type__": "Attribute",
+                                    "key": "components",
+                                    "value": [
+                                        {
+                                            "__type__": "Block",
+                                            "kind": "hash",
+                                            "name": "sessions",
+                                            "annotations": [],
+                                            "attributes": {
+                                                "session_id": {
+                                                    "__type__": "Attribute",
+                                                    "key": "session_id",
+                                                    "value": "VARCHAR (128) hash key",
+                                                    "annotations": []
+                                                },
+                                                "user_id": {
+                                                    "__type__": "Attribute",
+                                                    "key": "user_id",
+                                                    "value": "UUID",
+                                                    "annotations": []
+                                                },
+                                                "data": {
+                                                    "__type__": "Attribute",
+                                                    "key": "data",
+                                                    "value": "JSONB with personal info and preferences",
+                                                    "annotations": []
+                                                },
+                                                "expires_at": {
+                                                    "__type__": "Attribute",
+                                                    "key": "expires_at",
+                                                    "value": "TIMESTAMP",
+                                                    "annotations": []
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "annotations": []
+                                },
+                                "operations": {
+                                    "__type__": "Attribute",
+                                    "key": "operations",
+                                    "value": [
+                                        "Set",
+                                        "Get",
+                                        "Delete"
+                                    ],
+                                    "annotations": []
+                                }
+                            }
+                        },
+                        {
+                            "__type__": "Block",
+                            "kind": "struct",
+                            "name": "UserService",
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/user-service/internal/service/userService.go"
+                                    ]
+                                }
+                            ],
+                            "attributes": {
+                                "fields": {
+                                    "__type__": "Attribute",
+                                    "key": "fields",
+                                    "value": [
+                                        {
+                                            "__type__": "Field",
+                                            "name": "database",
+                                            "type": "UserRepo",
+                                            "visibility": "-",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "cache",
+                                            "type": "SessionCache",
+                                            "visibility": "-",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "verification",
+                                            "type": "VerificationService",
+                                            "visibility": "-",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        }
+                                    ],
+                                    "annotations": []
+                                },
+                                "methods": {
+                                    "__type__": "Attribute",
+                                    "key": "methods",
+                                    "value": [
+                                        {
+                                            "__type__": "Method",
+                                            "name": "GetUser",
+                                            "visibility": "+",
+                                            "params": "uuid string",
+                                            "returns": "*User",
+                                            "inputs": [
+                                                {
+                                                    "name": "uuid",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "outputs": [
+                                                {
+                                                    "name": "",
+                                                    "type": "*User",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "annotations": [],
+                                            "attributes": {
+                                                "description": {
+                                                    "__type__": "Attribute",
+                                                    "key": "description",
+                                                    "value": "Retrieves user by UUID.",
+                                                    "annotations": []
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "__type__": "Method",
+                                            "name": "UpdateUser",
+                                            "visibility": "+",
+                                            "params": "uuid string, user User",
+                                            "returns": "(User, error)",
+                                            "inputs": [
+                                                {
+                                                    "name": "uuid",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "user",
+                                                    "type": "User",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "outputs": [
+                                                {
+                                                    "name": "",
+                                                    "type": "User",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "",
+                                                    "type": "error",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "annotations": [],
+                                            "attributes": {
+                                                "description": {
+                                                    "__type__": "Attribute",
+                                                    "key": "description",
+                                                    "value": "Updates user details excluding password.",
+                                                    "annotations": []
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "__type__": "Method",
+                                            "name": "CreateUser",
+                                            "visibility": "+",
+                                            "params": "name, email, password string",
+                                            "returns": "(user User, err error)",
+                                            "inputs": [
+                                                {
+                                                    "name": "name",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "email",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "password",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "outputs": [
+                                                {
+                                                    "name": "user",
+                                                    "type": "User",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "err",
+                                                    "type": "error",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "annotations": [],
+                                            "attributes": {
+                                                "description": {
+                                                    "__type__": "Attribute",
+                                                    "key": "description",
+                                                    "value": "Registers new user and sends verification email.",
+                                                    "annotations": []
+                                                },
+                                                "algo": {
+                                                    "__type__": "Attribute",
+                                                    "key": "algo",
+                                                    "value": "1. Validate basic fields and password strength with validateUserInput\n2. Hash password with sha256\n3. Insert into users table\n4. Call VerifyUser to send verification email",
+                                                    "annotations": []
+                                                },
+                                                "analysis": {
+                                                    "__type__": "Attribute",
+                                                    "key": "analysis",
+                                                    "value": {
+                                                        "security": [
+                                                            "PASSWORD_COMPLEXITY_WEAK"
+                                                        ],
+                                                        "linter": [
+                                                            "UNHANDLED_ERROR"
+                                                        ]
+                                                    },
+                                                    "annotations": []
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "__type__": "Method",
+                                            "name": "VerifyUser",
+                                            "visibility": "+",
+                                            "params": "email string",
+                                            "returns": "bool",
+                                            "inputs": [
+                                                {
+                                                    "name": "email",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "outputs": [
+                                                {
+                                                    "name": "",
+                                                    "type": "bool",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "annotations": [],
+                                            "attributes": {
+                                                "description": {
+                                                    "__type__": "Attribute",
+                                                    "key": "description",
+                                                    "value": "Sends verification email to user.",
+                                                    "annotations": []
+                                                },
+                                                "algo": {
+                                                    "__type__": "Attribute",
+                                                    "key": "algo",
+                                                    "value": "1. Generate verification token\n2. Store token in verification service\n3. Send verification email via verification service\n4. Outside of this flow, user clicks link to verify and verification service triggers user's verified status update",
+                                                    "annotations": []
+                                                },
+                                                "analysis": {
+                                                    "__type__": "Attribute",
+                                                    "key": "analysis",
+                                                    "value": {
+                                                        "security": [
+                                                            "TOKEN_INSECURE_GENERATION"
+                                                        ]
+                                                    },
+                                                    "annotations": []
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "__type__": "Method",
+                                            "name": "validateUserInput",
+                                            "visibility": "-",
+                                            "params": "name, email, password string",
+                                            "returns": "bool",
+                                            "inputs": [
+                                                {
+                                                    "name": "name",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "email",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                },
+                                                {
+                                                    "name": "password",
+                                                    "type": "string",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "outputs": [
+                                                {
+                                                    "name": "",
+                                                    "type": "bool",
+                                                    "optional": false,
+                                                    "fields": null
+                                                }
+                                            ],
+                                            "annotations": [],
+                                            "attributes": {
+                                                "description": {
+                                                    "__type__": "Attribute",
+                                                    "key": "description",
+                                                    "value": "Validates user input fields:\n- Name: non-empty, max 100 chars\n- Email: valid format\n- Password: minimum 8 chars, includes letters and numbers",
+                                                    "annotations": []
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "annotations": []
+                                }
+                            }
+                        },
+                        {
+                            "__type__": "Block",
+                            "kind": "struct",
+                            "name": "User",
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/user-service/internal/models/user.go"
+                                    ]
+                                }
+                            ],
+                            "attributes": {
+                                "fields": {
+                                    "__type__": "Attribute",
+                                    "key": "fields",
+                                    "value": [
+                                        {
+                                            "__type__": "Field",
+                                            "name": "ID",
+                                            "type": "UUID",
+                                            "visibility": "+",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "Name",
+                                            "type": "string",
+                                            "visibility": "+",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "Email",
+                                            "type": "string",
+                                            "visibility": "+",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "PasswordHash",
+                                            "type": "string",
+                                            "visibility": "-",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "Verified",
+                                            "type": "bool",
+                                            "visibility": "+",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "CreatedAt",
+                                            "type": "timestamp",
+                                            "visibility": "+",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        },
+                                        {
+                                            "__type__": "Field",
+                                            "name": "UpdatedAt",
+                                            "type": "timestamp",
+                                            "visibility": "+",
+                                            "annotations": [],
+                                            "attributes": {}
+                                        }
+                                    ],
+                                    "annotations": []
+                                }
+                            }
+                        }
+                    ],
+                    "annotations": []
+                },
+                "llm_feedback": {
+                    "__type__": "Attribute",
+                    "key": "llm_feedback",
+                    "value": {
+                        "last_review": "2025-11-20T15:30:00Z",
+                        "latest_reviewed_commits": {
+                            "github.com/org/ecommerce/user-service": "a1b2c3d4e5f6g7h8i9j0k",
+                            "github.com/org/ecommerce/user-service-deployment": "z9y8x7w6v5u4t3s2r1q0p"
+                        },
+                        "notes": "User service design looks consistent with typical Go microservice patterns.\nIdentified a security issue regarding password hashing algorithm.",
+                        "issues_found": [
+                            {
+                                "id": "ISSUE-2025-001",
+                                "type": "security",
+                                "description": "Password hashing uses SHA256 which is not secure enough.",
+                                "recommendation": "Migrate to Argon2id for password hashing."
+                            },
+                            {
+                                "__type__": "Attribute",
+                                "key": null,
+                                "value": {
+                                    "id": "ISSUE-2025-002",
+                                    "type": "performance",
+                                    "description": "GetUser endpoint has unoptimized database queries leading to high latency.",
+                                    "recommendation": "Add indexing on frequently queried fields and optimize SQL queries."
+                                },
+                                "annotations": [
+                                    {
+                                        "__type__": "Annotation",
+                                        "name": "IGNORE",
+                                        "args": [
+                                            "reason:Low severity, to be addressed in future iteration"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    "annotations": []
+                }
+            }
+        },
+        {
+            "__type__": "Service",
+            "kind": "service",
+            "name": "verification_service",
+            "annotations": [],
+            "attributes": {
+                "description": {
+                    "__type__": "Attribute",
+                    "key": "description",
+                    "value": "Manages email verification for new users.",
+                    "annotations": []
+                },
+                "langs": {
+                    "__type__": "Attribute",
+                    "key": "langs",
+                    "value": [
+                        "python",
+                        "protobuf"
+                    ],
+                    "annotations": []
+                },
+                "repo": {
+                    "__type__": "Attribute",
+                    "key": "repo",
+                    "value": "github.com/org/ecommerce/verification-service",
+                    "annotations": []
+                },
+                "runtime": {
+                    "__type__": "Attribute",
+                    "key": "runtime",
+                    "value": {
+                        "development": {
+                            "__type__": "Attribute",
+                            "key": "development",
+                            "value": {
+                                "backend": "k8s",
+                                "namespace": "ecommerce",
+                                "replicas": "1",
+                                "autoscaling": "disabled",
+                                "cpu_request": "300m",
+                                "memory_request": "256Mi",
+                                "cpu_limit": "600m",
+                                "memory_limit": "512Mi",
+                                "deployment_name": "verification-service",
+                                "ports_exposed": [
+                                    "8080",
+                                    "50052"
+                                ]
+                            },
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/verification-service/deployment/dev/"
+                                    ]
+                                }
+                            ]
+                        },
+                        "production": {
+                            "__type__": "Attribute",
+                            "key": "production",
+                            "value": {
+                                "replicas": "2-5",
+                                "autoscaling": "cpu_target =70%",
+                                "cpu_request": "600m",
+                                "memory_request": "512Mi",
+                                "cpu_limit": "1200m",
+                                "memory_limit": "1024Mi"
+                            },
+                            "annotations": [
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "PATH",
+                                    "args": [
+                                        "github.com/org/ecommerce/verification-service/deployment/prod/"
+                                    ]
+                                },
+                                {
+                                    "__type__": "Annotation",
+                                    "name": "BASE",
+                                    "args": [
+                                        "system.verification_service.runtime.development"
+                                    ]
+                                }
+                            ]
+                        }
+                    },
+                    "annotations": [
+                        {
+                            "__type__": "Annotation",
+                            "name": "PATH",
+                            "args": [
+                                "github.com/org/ecommerce/verification-service/"
+                            ]
+                        }
+                    ]
+                },
+                "api": {
+                    "__type__": "Attribute",
+                    "key": "api",
+                    "value": [
+                        {
+                            "type": "grpc",
+                            "endpoints": [
+                                {
+                                    "__type__": "Endpoint",
+                                    "style": "grpc",
+                                    "name": "VerifyEmail",
+                                    "method": null,
+                                    "path": null,
+                                    "request": "VerifyEmailRequest {email:str}",
+                                    "response": "(success:bool, error:str?)",
+                                    "inputs": [
+                                        {
+                                            "name": "email",
+                                            "type": "str",
+                                            "optional": false,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "name": "success",
+                                            "type": "bool",
+                                            "optional": false,
+                                            "fields": null
+                                        },
+                                        {
+                                            "name": "error",
+                                            "type": "str",
+                                            "optional": true,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "annotations": [],
+                                    "attributes": {
+                                        "auth": "internal",
+                                        "rate_limit": "20/m",
+                                        "idempotent": "true"
+                                    },
+                                    "raw": "VerifyEmail (VerifyEmailRequest {email:str}) -> (success:bool, error:str?) [auth:internal, rate_limit:20/m, idempotent:true]"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "http",
+                            "endpoints": [
+                                {
+                                    "__type__": "Endpoint",
+                                    "style": "http",
+                                    "name": null,
+                                    "method": "POST",
+                                    "path": "/verify",
+                                    "request": "JSON{email:str}",
+                                    "response": "JSON{success:bool, error:str?}",
+                                    "inputs": [
+                                        {
+                                            "name": "email",
+                                            "type": "str",
+                                            "optional": false,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "name": "success",
+                                            "type": "bool",
+                                            "optional": false,
+                                            "fields": null
+                                        },
+                                        {
+                                            "name": "error",
+                                            "type": "str",
+                                            "optional": true,
+                                            "fields": null
+                                        }
+                                    ],
+                                    "annotations": [],
+                                    "attributes": {
+                                        "auth": "none",
+                                        "rate_limit": "5/m"
+                                    },
+                                    "raw": "POST /verify JSON{email:str} -> JSON{success:bool, error:str?} [auth:none, rate_limit:5/m]"
+                                }
+                            ]
+                        }
+                    ],
+                    "annotations": []
+                }
+            }
+        }
+    ]
+}
