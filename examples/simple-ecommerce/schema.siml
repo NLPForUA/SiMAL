@@ -1,0 +1,273 @@
+system {
+  type: microservices
+  domain: ecommerce
+
+  description: <<TEXT
+    This schema defines a fictional ecommerce microservices system context for interaction with LLMs.
+    It includes services for user management and email verification.
+    Each service is described with its API endpoints, data models, dependencies,
+    runtime configurations, CI pipelines, and analysis feedback.
+  TEXT
+
+  runtime: {
+    production: {
+      description: <<TEXT
+        AWS EKS cluster in us-west-2 region, 4-8 nodes, autoscaling enabled.
+        AWS Secrets Manager, Prometheus and Grafana for monitoring.
+      TEXT
+      stack: [kubernetes, aws, prometheus, grafana]
+    }
+    development: {
+      backend: local minikube
+      nodes: 1
+      secrets: local vault
+    }
+  }
+
+  @PATH(github.com/org/ecommerce/user-service/)
+  @CALLS(system.verification_service)
+  service user_service {
+    description: Handles user registration, authentication, and profile management.
+    langs: [go, protobuf, yaml]
+    repos: [github.com/org/ecommerce/user-service, github.com/org/ecommerce/user-service-deployment]
+
+    @PATH(github.com/org/ecommerce/user-service-deployment/deployment/)
+    runtime: {
+      @PATH(github.com/org/ecommerce/user-service-deployment/deployment/dev/)
+      development: {
+        backend: k8s
+        namespace: ecommerce
+        replicas: 1
+        autoscaling: disabled
+        cpu_request: 500m
+        memory_request: 256Mi
+        cpu_limit: 1
+        memory_limit: 512Mi
+        deployment_name: user-service
+        ports_exposed: [50051]
+      }
+      @PATH(github.com/org/ecommerce/user-service-deployment/deployment/prod/)
+      @BASE(system.user_service.runtime.development)
+      @DO_NOT_EDIT
+      production: {
+        replicas: 3-10
+        autoscaling: cpu_target=70%
+        cpu_request: 1000m
+        memory_request: 512Mi
+        cpu_limit: 2000m
+        memory_limit: 1024Mi
+      }
+    }
+
+    @PATH(github.com/org/ecommerce/user-service-deployment/.circleci/config.yml)
+    ci: {
+      backend: circleci
+      steps: {
+        CheckoutCode: pull code from repo
+        SetupGo: setup Go 1.21 environment
+        InstallDependencies: install project dependencies
+        RunTests: execute unit and integration tests
+        RunLinters: run code linters for quality checks
+        BuildBinary: compile the Go binary
+        BuildDockerImage: create Docker image
+        PushDockerImage: push Docker image to AWS ECR
+      }
+    }
+
+    dependencies: {
+      postgres: main database
+      redis: session cache
+      verification_service: grpc VerifyEmail (fallback http POST /verify)
+    }
+
+    api: [
+      {
+        type: grpc
+        endpoints: [
+          GetUser(GetUserRequest{uuid: str}) -> (user: User{name: str, email: str, verified: bool}?, error: str?) [auth: user_or_admin, cache: 5m, idempotent: true],
+          CreateUser(CreateUserRequest{name: str, email: str, password: str}) -> (uuid: str?, error: str?) [auth: none, rate_limit: 10/m]
+        ]
+      },
+      @DELETED(timestamp: 2024-05-01T12:00:00Z, reason: "Migrated to gRPC API")
+      {
+        type: http
+        endpoints: [
+          GET /users/{id} -> JSON{user: User{name: str, email: str, verified: bool}?, error: str?} [auth: user_or_admin, cache: 5m, idempotent: true]
+          POST /users JSON{name: str, email: str, password: str} -> JSON{uuid: str?, error: str?} [auth: none, rate_limit: 10/m]
+        ]
+      }
+    ]
+
+    components: [
+      @PATH(github.com/org/ecommerce/user-service/internal/db/)
+      @CRITICAL
+      database UserRepo {
+        engine: postgres-12
+        description: Manages user data in Postgres. Managed via migrations.
+        components: [
+          table users {
+            id: UUID (PK)
+            name: VARCHAR(100)
+            email: VARCHAR(100) (UNIQUE)
+            password_hash: VARCHAR(256)
+            verified: BOOLEAN
+            created_at: TIMESTAMP
+            updated_at: TIMESTAMP
+          }
+        ]
+        queries: [GetByID, Insert, Update, Delete]
+      }
+      @PATH(github.com/org/ecommerce/user-service/internal/cache/)
+      cache SessionCache {
+        engine: redis-6
+        description: Caches user session data.
+        components: [
+          hash sessions {
+            session_id: VARCHAR(128) hash key
+            user_id: UUID
+            data: JSONB with personal info and preferences
+            expires_at: TIMESTAMP
+          }
+        ]
+        operations: [Set, Get, Delete]
+      }
+      @PATH(github.com/org/ecommerce/user-service/internal/service/userService.go)
+      struct UserService {
+        fields: [
+          -database: UserRepo
+          -cache: SessionCache
+          -verification: VerificationService
+        ]
+        methods: [
+          +GetUser(uuid string) -> *User {
+            description: Retrieves user by UUID.
+          }
+          +UpdateUser(uuid string, user User) -> (User, error) {
+            description: Updates user details excluding password.
+          }
+          +CreateUser(name, email, password string) -> (user User, err error) {
+            description: Registers new user and sends verification email.
+            algo: <<TEXT
+              1. Validate basic fields and password strength with validateUserInput
+              2. Hash password with sha256
+              3. Insert into users table
+              4. Call VerifyUser to send verification email
+            TEXT
+            analysis: {
+              security: [PASSWORD_COMPLEXITY_WEAK]
+              linter: [UNHANDLED_ERROR]
+            }
+          }
+          +VerifyUser(email string) -> bool {
+            description: Sends verification email to user.
+            algo: <<TEXT
+              1. Generate verification token
+              2. Store token in verification service
+              3. Send verification email via verification service
+              4. Outside of this flow, user clicks link to verify and verification service triggers user's verified status update
+            TEXT
+            analysis: {
+              security: [TOKEN_INSECURE_GENERATION]
+            }
+          }
+          -validateUserInput(name, email, password string) -> bool {
+            description: <<TEXT
+              Validates user input fields:
+              - Name: non-empty, max 100 chars
+              - Email: valid format
+              - Password: minimum 8 chars, includes letters and numbers
+            TEXT
+          }
+        ]
+      }
+      @PATH(github.com/org/ecommerce/user-service/internal/models/user.go)
+      struct User {
+        fields: [
+          +ID: UUID
+          +Name: string
+          +Email: string
+          -PasswordHash: string
+          +Verified: bool
+          +CreatedAt: timestamp
+          +UpdatedAt: timestamp
+        ]
+      }
+    ]
+
+    llm_feedback: {
+      last_review: 2025-11-20T15:30:00Z
+      latest_reviewed_commits: {
+        github.com/org/ecommerce/user-service: a1b2c3d4e5f6g7h8i9j0k
+        github.com/org/ecommerce/user-service-deployment: z9y8x7w6v5u4t3s2r1q0p
+      }
+      notes: <<TEXT
+        User service design looks consistent with typical Go microservice patterns.
+        Identified a security issue regarding password hashing algorithm.
+      TEXT
+      issues_found: [
+        {
+          id: ISSUE-2025-001
+          type: security
+          description: Password hashing uses SHA256 which is not secure enough.
+          recommendation: Migrate to Argon2id for password hashing.
+        },
+        @IGNORE(reason: "Low severity, to be addressed in future iteration")
+        {
+          id: ISSUE-2025-002
+          type: performance
+          description: GetUser endpoint has unoptimized database queries leading to high latency.
+          recommendation: Add indexing on frequently queried fields and optimize SQL queries.
+        }
+      ]
+    }
+  }
+
+  service verification_service {
+    description: Manages email verification for new users.
+    langs: [python, protobuf]
+    repo: github.com/org/ecommerce/verification-service
+
+    @PATH(github.com/org/ecommerce/verification-service/)
+    runtime: {
+      @PATH(github.com/org/ecommerce/verification-service/deployment/dev/)
+      development: {
+        backend: k8s
+        namespace: ecommerce
+        replicas: 1
+        autoscaling: disabled
+        cpu_request: 300m
+        memory_request: 256Mi
+        cpu_limit: 600m
+        memory_limit: 512Mi
+        deployment_name: verification-service
+        ports_exposed: [8080, 50052]
+      }
+      @PATH(github.com/org/ecommerce/verification-service/deployment/prod/)
+      @BASE(system.verification_service.runtime.development)
+      production: {
+        replicas: 2-5
+        autoscaling: cpu_target=70%
+        cpu_request: 600m
+        memory_request: 512Mi
+        cpu_limit: 1200m
+        memory_limit: 1024Mi
+      }
+    }
+
+    api: [
+      {
+        type: grpc
+        endpoints: [
+          VerifyEmail(VerifyEmailRequest{email: str}) -> (success: bool, error: str?) [auth: internal, rate_limit: 20/m, idempotent: true]
+        ]
+      },
+      {
+        type: http
+        endpoints: [
+          POST /verify JSON{email: str} -> JSON{success: bool, error: str?} [auth: none, rate_limit: 5/m]
+        ]
+      }
+    ]
+  }
+
+}
