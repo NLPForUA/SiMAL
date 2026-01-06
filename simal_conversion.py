@@ -556,7 +556,22 @@ def _block_to_simple_dict(b: Block, max_simplify: bool = False) -> dict:
         out["annotations"] = [_annotation_to_simple(a) for a in b.annotations]
 
     # attributes
-    out.update(_attrs_to_simple_dict(b.attributes, max_simplify=max_simplify))
+    attrs_simple = _attrs_to_simple_dict(b.attributes, max_simplify=max_simplify)
+    if attrs_simple:
+        # Important: do not allow attribute keys to overwrite block metadata keys
+        # like `name`/`kind`/`annotations`. This happens commonly for tables with a
+        # `name` column, where flattening would overwrite the table name.
+        collisions = set(attrs_simple.keys()) & set(out.keys())
+        if collisions:
+            existing = out.get("attrs")
+            if existing is None:
+                out["attrs"] = attrs_simple
+            elif isinstance(existing, dict):
+                existing.update(attrs_simple)
+            else:
+                out["attrs"] = attrs_simple
+        else:
+            out.update(attrs_simple)
 
     # System has services; lift them into a dict services[name] = ...
     if isinstance(b, System):
