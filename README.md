@@ -35,6 +35,127 @@ python simal_cli.py path/to/schema.simal --max-simple
 
 ---
 
+## Examples
+
+Runnable example schemas (plus generated JSON artifacts) live in:
+
+- `examples/` (start with `examples/README.md`)
+
+If you just want to try SiMAL quickly, those examples are the easiest starting point.
+
+From the repo root:
+
+```bash
+python simal_cli.py examples/simple-ecommerce/schema.siml
+```
+
+---
+
+## Token savings: measuring SiMAL vs JSON
+
+This repo's main motivation is **prompt efficiency**: represent the same "system schema" content with fewer tokens so more context fits into a fixed model window.
+
+Below are results from a controlled comparison between:
+
+- **SiMAL** schemas (`.simal`)
+- **JSON (max-simple)** converted from those same schemas (keeps some complex structures like endpoints/methods as compact strings where possible)
+
+### Experimental setup
+
+- **Projects:** 10 repos, spanning webapps, libraries, and microservices.
+- **Iterations:** each project has multiple schema files; each iteration generates a new schema based on (optional) past schema + chunk of source code files (up to 5k lines); thus number of iterations = number of schema files.
+- **Schema generation model:** `gpt-5-2025-08-07`.
+- **JSON conversion:** `siml/language0.0.19/simal_cli.py --max-simple` (max-simplified JSON).
+- **Token counting:**
+  - **GPT tokenizer:** `tiktoken` (`o200k_base` used by `gpt-5` and newer models)
+  - **Gemma tokenizer:** `tokenizers` loading `google/gemma-3-27b-it`
+
+Interpretation (project-matched comparison):
+
+- Delta = tokens_simal - tokens_json (negative is better)
+- ratio = tokens_simal / tokens_json (smaller than 1.0 is better)
+
+### Benchmarked repos (stack snapshot)
+
+| Project | What it is | Stack highlights |
+|---|---|---|
+| [JuniorTest](https://github.com/niksyromyatnikov/JuniorTest) | News app + REST API | PHP/Laravel backend; Vue frontend (`composer.json`, `package.json`) |
+| [OHLCFormer](https://github.com/niksyromyatnikov/OHLCFormer) | OHLC forecasting toolkit | Python ML tooling (PyPI-style project layout) |
+| [dashboard-reactjs](https://github.com/luisotavio756/dashboard-reactjs) | Dashboard template | React SPA (Yarn) |
+| [full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template) | Full-stack app template | FastAPI + SQLModel + Postgres; React + TypeScript + Vite; Docker Compose/Traefik |
+| [microservice-app-example](https://github.com/elgris/microservice-app-example) | Polyglot microservice demo | Vue frontend; Go auth API; Node TODOs API; Java Spring Boot users API; Python worker; Redis/Zipkin |
+| [otel-python-cloud-run](https://github.com/dgildeh/otel-python-cloud-run) | Observability demo | Python microservices instrumented with OpenTelemetry; Google Cloud Run |
+| [spring-food-delivery-microservices](https://github.com/mehdihadeli/spring-food-delivery-microservices) | Large Java microservices example | Spring Boot; DDD/CQRS/Vertical Slice; RabbitMQ; event-driven architecture |
+| [sqlmodel](https://github.com/fastapi/sqlmodel) | Python library | SQLModel (Pydantic + SQLAlchemy ecosystem) |
+| [tokenizers](https://github.com/huggingface/tokenizers) | Tokenization library | Rust core; Python bindings (PyO3) + Node bindings; performance-focused |
+| [wild-workouts-go-ddd-example](https://github.com/ThreeDotsLabs/wild-workouts-go-ddd-example) | DDD reference app | Go backend; gRPC/OpenAPI; Cloud Run + Firebase; Terraform; includes a web frontend |
+
+### Global results (all projects × all iterations)
+
+Because JSON whitespace can be tuned depending on whether you optimize for **storage** or **human readability**, the results below include two JSON baselines.
+
+Totals across the whole corpus:
+
+| Mode | Files/Iterations | Bytes | GPT tokens | Gemma tokens | Avg GPT tokens/file | Avg Gemma tokens/file |
+|---|---|---|---|---|---|---|
+| JSON (max-simple, single-line) | 394 | 23,575,158 | 6,459,374 | 7,090,717 | 16,394 | 17,997 |
+| JSON (max-simple, indent=2) | 394 | 37,379,088 | 7,919,025 | 9,656,851 | 20,099 | 24,510 |
+| SiMAL | 394 | 26,075,093 | 5,900,298 | 7,083,775 | 14,975 | 17,979 |
+
+Overall delta (SiMAL vs JSON):
+
+- **Against indent=2 JSON:** bytes −30.2%, GPT tokens −25.5%, Gemma tokens −26.6% (SiMAL is smaller across the board)
+- **Against single-line JSON:** bytes +10.6% (SiMAL is larger), GPT tokens −8.7%, Gemma tokens −0.1% (near-parity)
+
+### Per-project breakdown
+
+All projects have identical iteration counts between JSON and SiMAL (each JSON file is derived from the corresponding SiMAL schema).
+
+#### Baseline A — JSON (indent=2) vs SiMAL
+
+| Project | Files/Iterations | GPT tokens (JSON → SiMAL) | GPT Δ | GPT Δ% | Gemma tokens (JSON → SiMAL) | Gemma Δ | Gemma Δ% |
+|---|---|---|---|---|---|---|---|
+| `JuniorTest` | 31 | 246,345 → 172,507 | −73,838 | −30.0% | 299,688 → 203,471 | −96,217 | −32.1% |
+| `OHLCFormer` | 12 | 62,733 → 47,374 | −15,359 | −24.5% | 76,965 → 56,520 | −20,445 | −26.6% |
+| `dashboard-reactjs` | 26 | 196,564 → 166,818 | −29,746 | −15.1% | 238,590 → 203,388 | −35,202 | −14.8% |
+| `full-stack-fastapi-template` | 39 | 793,822 → 613,405 | −180,417 | −22.7% | 962,485 → 735,031 | −227,454 | −23.6% |
+| `microservice-app-example` | 29 | 175,694 → 127,267 | −48,427 | −27.6% | 217,023 → 153,607 | −63,416 | −29.2% |
+| `otel-python-cloud-run` | 14 | 61,681 → 44,746 | −16,935 | −27.5% | 76,291 → 54,636 | −21,655 | −28.4% |
+| `spring-food-delivery-microservices` | 63 | 1,506,754 → 1,186,694 | −320,060 | −21.2% | 1,857,938 → 1,433,990 | −423,948 | −22.8% |
+| `sqlmodel` | 41 | 870,883 → 650,840 | −220,043 | −25.3% | 1,046,047 → 768,631 | −277,416 | −26.5% |
+| `tokenizers` | 78 | 2,430,922 → 1,750,332 | −680,590 | −28.0% | 2,966,844 → 2,101,913 | −864,931 | −29.2% |
+| `wild-workouts-go-ddd-example` | 61 | 1,573,627 → 1,140,315 | −433,312 | −27.5% | 1,914,980 → 1,372,588 | −542,392 | −28.3% |
+
+#### Baseline B — JSON (single-line) vs SiMAL
+
+| Project | Files/Iterations | GPT tokens (JSON → SiMAL) | GPT Δ | GPT Δ% | Gemma tokens (JSON → SiMAL) | Gemma Δ | Gemma Δ% |
+|---|---|---|---|---|---|---|---|
+| `JuniorTest` | 31 | 194,510 → 172,507 | −22,003 | −11.3% | 207,888 → 203,471 | −4,417 | −2.1% |
+| `OHLCFormer` | 12 | 53,044 → 47,374 | −5,670 | −10.7% | 59,809 → 56,520 | −3,289 | −5.5% |
+| `dashboard-reactjs` | 26 | 171,773 → 166,818 | −4,955 | −2.9% | 194,509 → 203,388 | +8,879 | +4.6% |
+| `full-stack-fastapi-template` | 39 | 667,027 → 613,405 | −53,622 | −8.0% | 734,920 → 735,031 | +111 | +0.0% |
+| `microservice-app-example` | 29 | 138,988 → 127,267 | −11,721 | −8.4% | 153,007 → 153,607 | +600 | +0.4% |
+| `otel-python-cloud-run` | 14 | 50,591 → 44,746 | −5,845 | −11.6% | 56,545 → 54,636 | −1,909 | −3.4% |
+| `spring-food-delivery-microservices` | 63 | 1,253,163 → 1,186,694 | −66,469 | −5.3% | 1,411,450 → 1,433,990 | +22,540 | +1.6% |
+| `sqlmodel` | 41 | 706,327 → 650,840 | −55,487 | −7.9% | 756,428 → 768,631 | +12,203 | +1.6% |
+| `tokenizers` | 78 | 1,943,340 → 1,750,332 | −193,008 | −9.9% | 2,116,913 → 2,101,913 | −15,000 | −0.7% |
+| `wild-workouts-go-ddd-example` | 61 | 1,280,611 → 1,140,315 | −140,296 | −11.0% | 1,399,248 → 1,372,588 | −26,660 | −1.9% |
+
+### What these numbers mean
+
+- The win is **consistent across stacks** (frontend-only, backend templates, polyglot microservices, and libraries).
+- The win is **highly sensitive to JSON whitespace choices**, especially under the GPT tokenizer.
+- Under **indent=2 JSON**, SiMAL saves roughly **~25–27% tokens** overall (both GPT and Gemma).
+- Under **single-line JSON**, SiMAL still saves **~9% GPT tokens** overall, while **Gemma tokens are ~parity** (and some repos flip direction).
+
+### Caveats / notes
+
+- **JSON formatting is part of the baseline.** A single-line JSON is often best for storage/transport, while indented JSON is best for humans. If you copy JSON into prompts as pretty-printed text, the whitespace overhead matters.
+- **Tokenizer behavior differs.** In this dataset, minifying JSON dramatically reduces GPT-token counts, but affects Gemma-token counts much less.
+- This comparison isolates **representation overhead** (syntax/structure). It does not claim anything about schema *quality* or downstream task performance.
+
+---
+
 ## Core syntax
 
 SiMAL is a **block + attributes** language:
@@ -342,7 +463,7 @@ The request/response signatures are parsed into a structured form when possible 
 
 ---
 
-## What’s allowed (and what’s not) - as implemented here
+## What’s allowed (and what’s not) — as implemented here
 
 ### Allowed
 
