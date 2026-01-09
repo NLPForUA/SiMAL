@@ -65,7 +65,7 @@ Below are results from a controlled comparison between:
 - **Projects:** 10 repos, spanning webapps, libraries, and microservices.
 - **Iterations:** each project has multiple schema files; each iteration generates a new schema based on (optional) past schema + chunk of source code files (up to 5k lines); thus number of iterations = number of schema files.
 - **Schema generation model:** `gpt-5-2025-08-07`.
-- **JSON conversion:** `siml/language0.0.19/simal_cli.py --max-simple` (max-simplified JSON).
+- **JSON conversion:** `simal_cli.py --max-simple` (max-simplified JSON).
 - **Token counting:**
   - **GPT tokenizer:** `tiktoken` (`o200k_base` used by `gpt-5` and newer models)
   - **Gemma tokenizer:** `tokenizers` loading `google/gemma-3-27b-it`
