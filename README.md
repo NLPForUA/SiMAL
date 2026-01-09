@@ -65,7 +65,7 @@ Below are results from a controlled comparison between:
 - **Projects:** 10 repos, spanning webapps, libraries, and microservices.
 - **Iterations:** each project has multiple schema files; each iteration generates a new schema based on (optional) past schema + chunk of source code files (up to 5k lines); thus number of iterations = number of schema files.
 - **Schema generation model:** `gpt-5-2025-08-07`.
-- **JSON conversion:** `simal_cli.py --max-simple` (max-simplified JSON).
+- **JSON conversion:** `siml/language0.0.19/simal_cli.py --max-simple` (max-simplified JSON).
 - **Token counting:**
   - **GPT tokenizer:** `tiktoken` (`o200k_base` used by `gpt-5` and newer models)
   - **Gemma tokenizer:** `tokenizers` loading `google/gemma-3-27b-it`
@@ -97,7 +97,7 @@ Because JSON whitespace can be tuned depending on whether you optimize for **sto
 Totals across the whole corpus:
 
 | Mode | Files/Iterations | Bytes | GPT tokens | Gemma tokens | Avg GPT tokens/file | Avg Gemma tokens/file |
-|---|---|---|---|---|---|---|
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
 | JSON (max-simple, single-line) | 394 | 23,575,158 | 6,459,374 | 7,090,717 | 16,394 | 17,997 |
 | JSON (max-simple, indent=2) | 394 | 37,379,088 | 7,919,025 | 9,656,851 | 20,099 | 24,510 |
 | SiMAL | 394 | 26,075,093 | 5,900,298 | 7,083,775 | 14,975 | 17,979 |
@@ -114,7 +114,7 @@ All projects have identical iteration counts between JSON and SiMAL (each JSON f
 #### Baseline A — JSON (indent=2) vs SiMAL
 
 | Project | Files/Iterations | GPT tokens (JSON → SiMAL) | GPT Δ | GPT Δ% | Gemma tokens (JSON → SiMAL) | Gemma Δ | Gemma Δ% |
-|---|---|---|---|---|---|---|---|
+|---|:---:|---|:---:|:---:|---|:---:|:---:|
 | `JuniorTest` | 31 | 246,345 → 172,507 | −73,838 | −30.0% | 299,688 → 203,471 | −96,217 | −32.1% |
 | `OHLCFormer` | 12 | 62,733 → 47,374 | −15,359 | −24.5% | 76,965 → 56,520 | −20,445 | −26.6% |
 | `dashboard-reactjs` | 26 | 196,564 → 166,818 | −29,746 | −15.1% | 238,590 → 203,388 | −35,202 | −14.8% |
@@ -129,7 +129,7 @@ All projects have identical iteration counts between JSON and SiMAL (each JSON f
 #### Baseline B — JSON (single-line) vs SiMAL
 
 | Project | Files/Iterations | GPT tokens (JSON → SiMAL) | GPT Δ | GPT Δ% | Gemma tokens (JSON → SiMAL) | Gemma Δ | Gemma Δ% |
-|---|---|---|---|---|---|---|---|
+|---|:---:|---|:---:|:---:|---|:---:|:---:|
 | `JuniorTest` | 31 | 194,510 → 172,507 | −22,003 | −11.3% | 207,888 → 203,471 | −4,417 | −2.1% |
 | `OHLCFormer` | 12 | 53,044 → 47,374 | −5,670 | −10.7% | 59,809 → 56,520 | −3,289 | −5.5% |
 | `dashboard-reactjs` | 26 | 171,773 → 166,818 | −4,955 | −2.9% | 194,509 → 203,388 | +8,879 | +4.6% |
@@ -153,6 +153,91 @@ All projects have identical iteration counts between JSON and SiMAL (each JSON f
 - **JSON formatting is part of the baseline.** A single-line JSON is often best for storage/transport, while indented JSON is best for humans. If you copy JSON into prompts as pretty-printed text, the whitespace overhead matters.
 - **Tokenizer behavior differs.** In this dataset, minifying JSON dramatically reduces GPT-token counts, but affects Gemma-token counts much less.
 - This comparison isolates **representation overhead** (syntax/structure). It does not claim anything about schema *quality* or downstream task performance.
+
+### Quality evaluation (schema correctness)
+
+Token savings matter only if the representation stays **faithful and useful**. To sanity-check that, we also ran an LLM-as-judge evaluation where judges were asked to read:
+
+- the **full project context** (all source-code chunks up to and including the last schema-iteration), and
+- the **latest schema** for that project (JSON vs SiMAL; same iteration index)
+
+and then:
+
+- identify issues, incorrect statements, and missing/contradictory details, and
+- produce a score (later converted into a weighted/penalized manual score per run).
+
+Setup:
+
+- **Judges:** Gemini 3 Pro, Claude Sonnet 4.5, GPT-5.2
+- **Runs:** 3 independent runs per (judge × project × format)
+- **Aggregation:** average of the 3 run scores per cell
+- **Context-limit note:** GPT-5.2 has a hard input cap (~280k tokens) and could not evaluate `sqlmodel` and `tokenizers`, so GPT averages are reported over **8 projects**.
+
+<details>
+<summary>Scoring rubric (criteria, weights, and penalties)</summary>
+
+Each evaluation run outputs strict JSON with:
+
+- **Six subscores** (integers 0–5, or -1 for N/A):
+  - `schema_coverage_score` (weight 20)
+  - `schema_accuracy_score` (weight 20)
+  - `api_accuracy_score` (weight 20)
+  - `structure_accuracy_score` (weight 15)
+  - `annotation_quality_score` (weight 10)
+  - `non_hallucination_score` (weight 15)
+
+- **Six error counters** (non-negative integers):
+  - `missed_major_components`, `missed_minor_components`, `spurious_components`,
+  - `incorrect_api_signatures`, `incorrect_struct_or_table_definitions`, `incorrect_visibility_flags`
+
+N/A handling:
+
+- A category can be N/A only if that aspect genuinely does not exist in the repo *and* the schema does not claim it exists.
+- N/A subscores are excluded from the weighted-base numerator and denominator.
+
+Overall score is computed deterministically:
+
+1) Weighted base from subscores:
+
+`weighted_base = round_half_up(sum((subscore/5)*weight))` (excluding N/A)
+
+2) Penalty from counted errors:
+
+`penalty = 7 * missed_major_components + 2 * missed_minor_components + 4 * spurious_components + 3 * incorrect_api_signatures + 3 * incorrect_struct_or_table_definitions + 1 * incorrect_visibility_flags`
+
+`overall_score = clamp(weighted_base - penalty, 0, 100)`
+
+Evidence rules (how judges were instructed to behave):
+
+- Evidence-first / strict mode: schema claims must be supported by the provided files.
+- Acceptable abstraction is not penalized (e.g., naming-style differences, approximate types).
+- Unsupported “strong verb” behavior claims are penalized (e.g., *enforces auth*, *uses JWT*, *caches for 5m*).
+
+</details>
+
+Average scores (higher is better):
+
+| Project | JSON — Gemini | JSON — Claude | JSON — GPT | SiMAL — Gemini | SiMAL — Claude | SiMAL — GPT |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: |
+| JuniorTest | **81** | **75.33** | **69** | **100** | **85** | **82.33** |
+| OHLCFormer | **97.33** | **90** | **85.67** | **100** | **95.67** | **80.33** |
+| dashboard-reactjs | **100** | **88** | **80.33** | **100** | **100** | **86** |
+| full-stack-fastapi-template | **100** | **86** | **82.333** | **100** | **65.67** | **63** |
+| microservice-app-example | **93** | **77** | **61.33** | **97.67** | **72.67** | **76.67** |
+| otel-python-cloud-run | **98.33** | **94** | **92.67** | **100** | **97.33** | **95.33** |
+| spring-food-delivery-microservices | **100** | **55.33** | **62** | **100** | **88.33** | **67.67** |
+| wild-workouts-go-ddd-example | **97.67** | **95.33** | **80** | **100** | **71.33** | **64** |
+| **Average (8 projects, n=24)** | **95.92** | **82.62** | **76.67** | **99.71** | **84.50** | **76.92** |
+| sqlmodel | **74** | **73** | **—** | **64.67** | **58.33** | **—** |
+| tokenizers | **100** | **94** | **—** | **94.67** | **29.67** | **—** |
+| **Average (10 projects, n=30)** | **94.13** | **82.80** | **—** | **95.70** | **76.40** | **—** |
+
+What’s worth noting in this dataset:
+
+- **On 8 projects, SiMAL is on par or slightly better.** Where all three judges ran (8 projects), SiMAL matches JSON overall and edges ahead for Gemini and Claude on average, with GPT-5.2 near-parity.
+- **Including the largest projects, Claude gets more conservative.** Adding `sqlmodel` and `tokenizers` shifts Claude’s average to **76.40 (SiMAL) vs 82.80 (JSON)** — i.e. SiMAL is about **8.4% lower** under Claude when long-context projects are included.
+- **Long-context judging can be inconsistent.** On very long inputs, differences may reflect judge long-sequence reliability (what the model notices/forgets) as much as representation quality.
+- **JSON is the more “familiar” schema format for judges.** Even if models have seen pieces of SiMAL-like syntax during training, they are far more likely to have seen full JSON schemas end-to-end, so some of the scoring can be subjective.
 
 ---
 
