@@ -75,7 +75,7 @@ Interpretation (project-matched comparison):
 - Delta = tokens_simal - tokens_json (negative is better)
 - ratio = tokens_simal / tokens_json (smaller than 1.0 is better)
 
-### Benchmarked repos (stack snapshot)
+### Benchmarked repos
 
 Project tokens - total number of tokens for tokenized (o200k_base) source code files used as context for schema generation.
 
