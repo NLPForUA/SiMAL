@@ -84,7 +84,7 @@ Project tokens - total number of tokens for tokenized (o200k_base) source code f
 | [JuniorTest](https://github.com/niksyromyatnikov/JuniorTest) | 35905 | News app + REST API | PHP/Laravel backend; Vue frontend (`composer.json`, `package.json`) |
 | [OHLCFormer](https://github.com/niksyromyatnikov/OHLCFormer) | 29452 | OHLC forecasting toolkit | Python ML tooling (PyPI-style project layout) |
 | [dashboard-reactjs](https://github.com/luisotavio756/dashboard-reactjs) | 22003 | Dashboard template | React SPA (Yarn) |
-| [full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template) | Full-stack app template | FastAPI + SQLModel + Postgres; React + TypeScript + Vite; Docker Compose/Traefik |
+| [full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template) | 143499 | Full-stack app template | FastAPI + SQLModel + Postgres; React + TypeScript + Vite; Docker Compose/Traefik |
 | [microservice-app-example](https://github.com/elgris/microservice-app-example) | 21368 | Polyglot microservice demo | Vue frontend; Go auth API; Node TODOs API; Java Spring Boot users API; Python worker; Redis/Zipkin |
 | [otel-python-cloud-run](https://github.com/dgildeh/otel-python-cloud-run) | 13014 | Observability demo | Python microservices instrumented with OpenTelemetry; Google Cloud Run |
 | [spring-food-delivery-microservices](https://github.com/mehdihadeli/spring-food-delivery-microservices) | 200762 | Large Java microservices example | Spring Boot; DDD/CQRS/Vertical Slice; RabbitMQ; event-driven architecture |
