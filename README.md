@@ -77,18 +77,20 @@ Interpretation (project-matched comparison):
 
 ### Benchmarked repos (stack snapshot)
 
-| Project | What it is | Stack highlights |
-|---|---|---|
-| [JuniorTest](https://github.com/niksyromyatnikov/JuniorTest) | News app + REST API | PHP/Laravel backend; Vue frontend (`composer.json`, `package.json`) |
-| [OHLCFormer](https://github.com/niksyromyatnikov/OHLCFormer) | OHLC forecasting toolkit | Python ML tooling (PyPI-style project layout) |
-| [dashboard-reactjs](https://github.com/luisotavio756/dashboard-reactjs) | Dashboard template | React SPA (Yarn) |
+Project tokens - total number of tokens for tokenized (o200k_base) source code files used as context for schema generation.
+
+| Project | Project tokens | What it is | Stack highlights |
+|---|---|---|---|
+| [JuniorTest](https://github.com/niksyromyatnikov/JuniorTest) | 35905 | News app + REST API | PHP/Laravel backend; Vue frontend (`composer.json`, `package.json`) |
+| [OHLCFormer](https://github.com/niksyromyatnikov/OHLCFormer) | 29452 | OHLC forecasting toolkit | Python ML tooling (PyPI-style project layout) |
+| [dashboard-reactjs](https://github.com/luisotavio756/dashboard-reactjs) | 22003 | Dashboard template | React SPA (Yarn) |
 | [full-stack-fastapi-template](https://github.com/fastapi/full-stack-fastapi-template) | Full-stack app template | FastAPI + SQLModel + Postgres; React + TypeScript + Vite; Docker Compose/Traefik |
-| [microservice-app-example](https://github.com/elgris/microservice-app-example) | Polyglot microservice demo | Vue frontend; Go auth API; Node TODOs API; Java Spring Boot users API; Python worker; Redis/Zipkin |
-| [otel-python-cloud-run](https://github.com/dgildeh/otel-python-cloud-run) | Observability demo | Python microservices instrumented with OpenTelemetry; Google Cloud Run |
-| [spring-food-delivery-microservices](https://github.com/mehdihadeli/spring-food-delivery-microservices) | Large Java microservices example | Spring Boot; DDD/CQRS/Vertical Slice; RabbitMQ; event-driven architecture |
-| [sqlmodel](https://github.com/fastapi/sqlmodel) | Python library | SQLModel (Pydantic + SQLAlchemy ecosystem) |
-| [tokenizers](https://github.com/huggingface/tokenizers) | Tokenization library | Rust core; Python bindings (PyO3) + Node bindings; performance-focused |
-| [wild-workouts-go-ddd-example](https://github.com/ThreeDotsLabs/wild-workouts-go-ddd-example) | DDD reference app | Go backend; gRPC/OpenAPI; Cloud Run + Firebase; Terraform; includes a web frontend |
+| [microservice-app-example](https://github.com/elgris/microservice-app-example) | 21368 | Polyglot microservice demo | Vue frontend; Go auth API; Node TODOs API; Java Spring Boot users API; Python worker; Redis/Zipkin |
+| [otel-python-cloud-run](https://github.com/dgildeh/otel-python-cloud-run) | 13014 | Observability demo | Python microservices instrumented with OpenTelemetry; Google Cloud Run |
+| [spring-food-delivery-microservices](https://github.com/mehdihadeli/spring-food-delivery-microservices) | 200762 | Large Java microservices example | Spring Boot; DDD/CQRS/Vertical Slice; RabbitMQ; event-driven architecture |
+| [wild-workouts-go-ddd-example](https://github.com/ThreeDotsLabs/wild-workouts-go-ddd-example) | 140366 | DDD reference app | Go backend; gRPC/OpenAPI; Cloud Run + Firebase; Terraform; includes a web frontend |
+| [sqlmodel](https://github.com/fastapi/sqlmodel) | 240793 | Python library | SQLModel (Pydantic + SQLAlchemy ecosystem) |
+| [tokenizers](https://github.com/huggingface/tokenizers) | 542769 | Tokenization library | Rust core; Python bindings (PyO3) + Node bindings; performance-focused |
 
 ### Global results (all projects × all iterations)
 
@@ -217,25 +219,25 @@ Evidence rules (how judges were instructed to behave):
 
 Average scores (higher is better):
 
-| Project | Project Tokens | JSON / SiMAL schema tokens | JSON — Gemini | JSON — Claude | JSON — GPT | SiMAL — Gemini | SiMAL — Claude | SiMAL — GPT |
-| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| JuniorTest | 35905 | 14429 / 9592 | **81** | **75.33** | **69** | **100** | **85** | **82.33** |
-| OHLCFormer | 29452 | 10948 / 7545 | **97.33** | **90** | **85.67** | **100** | **95.67** | **80.33** |
-| dashboard-reactjs | 22003 | 17029 / 13849 | **100** | **88** | **80.33** | **100** | **100** | **86** |
-| full-stack-fastapi-template | 143499 | 43075 / 27086 | **100** | **86** | **82.333** | **100** | **65.67** | **63** |
-| microservice-app-example | 21368 | 11891 / 6317 | **93** | **77** | **61.33** | **97.67** | **72.67** | **76.67** |
-| otel-python-cloud-run | 13014 | 9242 / 5104 | **98.33** | **94** | **92.67** | **100** | **97.33** | **95.33** |
-| spring-food-delivery-microservices | 200762 | 52097 / 41793 | **100** | **55.33** | **62** | **100** | **88.33** | **67.67** |
-| wild-workouts-go-ddd-example | 140366 | 60046 / 32782 | **97.67** | **95.33** | **80** | **100** | **71.33** | **64** |
-| **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** |
-| **AVERAGE (8 projects, n=24)** | 75796 | 27345 / 18009 | **95.92** | **82.62** | **76.67** | **99.71** | **84.50** | **76.92** |
-| **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** |
-| sqlmodel | 240793 | 68411 / 18860 | **74** | **73** | **—** | **64.67** | **58.33** | **—** |
-| tokenizers | 542769 | 83949 / 46263 | **100** | **94** | **—** | **94.67** | **29.67** | **—** |
-| **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** |
-| **AVERAGE (10 projects, n=30)** | 138993 | 37112 / 20919 | **94.13** | **82.80** | **—** | **95.70** | **76.40** | **—** |
+| Project | Project Tokens | JSON / SiMAL schema tokens | # | JSON — Gemini | JSON — Claude | JSON — GPT | # | SiMAL — Gemini | SiMAL — Claude | SiMAL — GPT |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| JuniorTest | 35905 | 14429 / 9592 | # | 81 | 75.33 | 69 | # | **100** | **85** | **82.33** |
+| OHLCFormer | 29452 | 10948 / 7545 | # | 97.33 | 90 | **85.67** | # | **100** | **95.67** | 80.33 |
+| dashboard-reactjs | 22003 | 17029 / 13849 | # | **100** | 88 | 80.33 | # | **100** | **100** | **86** |
+| full-stack-fastapi-template | 143499 | 43075 / 27086 | # | **100** | **86** | **82.33** | # | **100** | 65.67 | 63 |
+| microservice-app-example | 21368 | 11891 / 6317 | # | 93 | **77** | 61.33 | # | **97.67** | 72.67 | **76.67** |
+| otel-python-cloud-run | 13014 | 9242 / 5104 | # | 98.33 | 94 | 92.67 | # | **100** | **97.33** | **95.33** |
+| spring-food-delivery-microservices | 200762 | 52097 / 41793 | # | **100** | 55.33 | 62 | # | **100** | **88.33** | **67.67** |
+| wild-workouts-go-ddd-example | 140366 | 60046 / 32782 | # | 97.67 | **95.33** | **80** | # | **100** | 71.33 | 64 |
+| **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** |
+| **AVERAGE (8 projects, n=24)** | 75796 | 27345 / 18009 | # | 95.92 | 82.62 | 76.67 | # | **99.71** | **84.50** | **76.92** |
+| **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** |
+| sqlmodel | 240793 | 68411 / 18860 | # | **74** | **73** | **—** | # | 64.67 | 58.33 | **—** |
+| tokenizers | 542769 | 83949 / 46263 | # | **100** | **94** | **—** | # | 94.67 | 29.67 | **—** |
+| **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** | **===** |
+| **AVERAGE (10 projects, n=30)** | 138993 | 37112 / 20919 | # | 94.13 | **82.80** | **—** | # | **95.70** | 76.40 | **—** |
 
-What’s worth noting in this dataset:
+Notes:
 
 - **On 8 projects, SiMAL is on par or slightly better.** Where all three judges ran (8 projects), SiMAL matches JSON overall and edges ahead for Gemini and Claude on average, with GPT-5.2 near-parity.
 - **Including the largest projects, Claude gets more conservative.** Adding `sqlmodel` and `tokenizers` shifts Claude’s average to **76.40 (SiMAL) vs 82.80 (JSON)** — i.e. SiMAL is about **8.4% lower** under Claude when long-context projects are included.
