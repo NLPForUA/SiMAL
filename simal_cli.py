@@ -2,13 +2,25 @@
 
 import argparse
 import json
+from pathlib import Path
+
 from simal_conversion import system_to_json_dict, system_to_simple_json_dict
+from simal_normalize import remove_leading_indentation
 from simal_parser import parse_dsl
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Parse SIMAL and convert to JSON formats.")
     parser.add_argument("path", help="Path to a .siml/.simal schema file")
+    parser.add_argument(
+        "--dedent-out",
+        dest="dedent_out",
+        default=None,
+        help=(
+            "Write a dedented copy of the input schema to the given path (file or directory). "
+            "Leading spaces/tabs are removed per line; newlines are preserved; heredoc bodies are preserved."
+        ),
+    )
     parser.add_argument(
         "--json",
         dest="emit_json",
@@ -45,6 +57,18 @@ if __name__ == "__main__":
     path = args.path
     with open(path, "r", encoding="utf-8") as f:
         content = f.read()
+
+    if args.dedent_out:
+        out_target = Path(args.dedent_out)
+        in_path = Path(path)
+        treat_as_dir = (
+            (out_target.exists() and out_target.is_dir())
+            or str(args.dedent_out).endswith(("/", "\\"))
+        )
+        out_path = (out_target / in_path.name) if treat_as_dir else out_target
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        normalized = remove_leading_indentation(content, preserve_heredocs=True)
+        out_path.write_text(normalized, encoding="utf-8")
     try:
         system = parse_dsl(content, merge_duplicate_attrs=args.merge_duplicate_attrs)
     except Exception as e:
