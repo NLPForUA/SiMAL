@@ -81,6 +81,7 @@ MethodReturnsText = ScalarText(terminators = { "{", ",", "]", NL } at depth 0) ;
 HttpEndpoint = HttpVerb HttpPathAndMaybeRequest [ NL* "->" NL* HttpResponseSig ] HttpAttrsOpt ;
 HttpVerb = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" ;
 HttpPath = PathText ; (* token sequence compacted; may include "/todos/{id}" JSON/TEXT/FORM or "{" *)
+HttpRequestSig = SignatureText ; (* token sequence compacted, often starts with JSON/TEXT/FORM or "{" *)
 HttpResponseSig = SignatureText ;
 HttpAttrsOpt = [ EndpointAttrs ] ;
 
@@ -120,7 +121,4 @@ ObjectShape = "{" ObjFieldList? "}" ;
 ObjFieldList = ObjField { ( "," | WS+ ) ObjField } ;
 ObjField = Ident ":" TypeExpr | Ident WS+ Ident OptionalMark? ; (* "uuid str?" form *)
 OptionalMark = "?" ;
-```
-etc. *)
-HttpRequestSig = SignatureText ; (* token sequence compacted, often starts with
 ```
